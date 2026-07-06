@@ -3,7 +3,6 @@ import os
 import sys
 import eyed3
 import eyed3.id3
-from eyed3.core import CountAndTotalTuple
 
 from typing import Any, Callable
 from enum import Enum
@@ -126,21 +125,27 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
 
     def confirm_button_clicked(self: AlbumCreationDialog) -> None:
         if self.title_edit.displayText() == "":
-            self.status_bar.setText("Enter the album's title.")
+            self.status_bar.setText("Enter the album's title")
             return
         if self.artist_edit.displayText() == "":
-            self.status_bar.setText("Enter the artist's name.")
+            self.status_bar.setText("Enter the artist's name")
             return
         if self.year_edit.displayText() == "":
-            self.status_bar.setText("Enter the album's release year.")
+            self.status_bar.setText("Enter the album's release year")
+            return
+        if not self.year_edit.hasAcceptableInput():
+            self.status_bar.setText("Enter a valid album release year "+
+                                    "(a number between 1000 and 9999)")
             return
         if len(self.selected_songs) == 0:
-            self.status_bar.setText("Select songs for the album.")
+            self.status_bar.setText("Select songs for the album")
             return
         self.status_bar.setText("")
 
-        with open(self.selected_cover, "rb") as f:
-            cover_bytes = f.read()
+        cover_bytes = None
+        if self.selected_cover:
+            with open(self.selected_cover, "rb") as f:
+                cover_bytes = f.read()
         songs = []
         for path in self.selected_songs:
             song = Song(path)
@@ -614,12 +619,27 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.centralwidget.destroy()
 
         self.action_new.triggered.connect(self.new_album_window)
-        self.action_debug.triggered.connect(self.debug)
+        self.action_save_all.triggered.connect(self.save_all)
         self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
+        self.action_save_all.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self.toggle_menu_bar_actions(False)
 
-        self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
+        if DEBUG:
+            self.action_debug = QAction("Debug", self)
+            self.menuFile.addAction(self.action_debug)
+            self.action_debug.triggered.connect(self.debug)
+            self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
 
-    def closeEvent(self, a0: QCloseEvent | None) -> None:
+    def toggle_menu_bar_actions(self: TableWindow, enabled: bool) -> None:
+        self.action_new.setEnabled(enabled)
+        self.action_save_all.setEnabled(enabled)
+        self.action_autofill_ta.setEnabled(enabled)
+
+    def save_all(self: TableWindow) -> None:
+        for i in range(len(self.model.songs)):
+            self.model.songs[i].save()
+
+    def closeEvent(self: TableWindow, a0: QCloseEvent | None) -> None:
         if not a0: return
         a0.accept()
         QApplication.quit()
@@ -644,7 +664,6 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         row = index.row()
         self.dialog = EditTagsDialog(self.model.songs, row)
         self.dialog.show()
-
     
     def add_songs(self: TableWindow, songs: list[Song]) -> None:
         self.model = SongsTableModel()
@@ -674,6 +693,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.model.add_songs(songs)
         self.view.resizeColumnsToContents()
         self.model.tableChanged.connect(self.view.resizeColumnsToContents)
+        self.toggle_menu_bar_actions(True)
 
 class SongsListDialog(QDialog, Ui_ListDialog):
     def __init__(self: SongsListDialog, items: list[str]) -> None:
