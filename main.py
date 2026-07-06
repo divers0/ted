@@ -19,6 +19,7 @@ from PyQt6.QtCore import (
     QSortFilterProxyModel,
 )
 from PyQt6.QtGui import (
+    QCloseEvent,
     QAction,
     QKeySequence,
     QMouseEvent,
@@ -96,11 +97,11 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             # self.set_song_paths(["/home/diverso/p/id3v2.4/01_Empty.mp3"])
             # self.set_song_paths(["/home/diverso/p/id3v2.4/The Stranglers - Golden Brown.mp3"])
 
-            music_path = "/home/diverso/Music"
-            self.set_song_paths([os.path.join(music_path, x) for x in os.listdir(music_path) if os.path.isfile(os.path.join(music_path, x))])
+            # music_path = "/home/diverso/Music"
+            # self.set_song_paths([os.path.join(music_path, x) for x in os.listdir(music_path) if os.path.isfile(os.path.join(music_path, x))])
 
-            # music_path = "/run/media/diverso/PHILIPS/Music"
-            # self.set_song_paths([os.path.join(music_path, x) for x in ("Muse - Starlight.mp3", "Muse - Knights of Cydonia.mp3", "Muse - Supermassive Black Hole.mp3")])
+            music_path = "/run/media/diverso/PHILIPS/Music"
+            self.set_song_paths([os.path.join(music_path, x) for x in ("Muse - Starlight.mp3", "Muse - Knights of Cydonia.mp3", "Muse - Supermassive Black Hole.mp3")])
 
     def clear_image_button_clicked(self: AlbumCreationDialog) -> None:
         self.selected_cover = ""
@@ -133,9 +134,6 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         if self.year_edit.displayText() == "":
             self.status_bar.setText("Enter the album's release year.")
             return
-        if not self.year_edit.hasAcceptableInput(): # Probably useless but i'll keep it just in case
-            self.status_bar.setText("Enter a valid album release year.")
-            return
         if len(self.selected_songs) == 0:
             self.status_bar.setText("Select songs for the album.")
             return
@@ -143,7 +141,14 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
 
         with open(self.selected_cover, "rb") as f:
             cover_bytes = f.read()
-        songs = [Song(path, cover_bytes) for path in self.selected_songs]
+        songs = []
+        for path in self.selected_songs:
+            song = Song(path)
+            song.new_cover = cover_bytes
+            song.album = self.title_edit.text()
+            song.artist = self.artist_edit.text()
+            song.year = int(self.year_edit.text())
+            songs.append(song)
         self.populate_table(songs)
         self.close()
 
@@ -231,9 +236,9 @@ class Song(QObject):
     #                           proerty_name, new_value
     propertyChanged = pyqtSignal(str, object)
 
-    def __init__(self: Song, file_path: str, new_cover: bytes | None = None) -> None:
+    def __init__(self: Song, file_path: str) -> None:
         super().__init__()
-        self.__new_cover = new_cover
+        self.__new_cover = None
         self.__file_path = file_path
         self.__orig_file_path = file_path
         self.__audio_file = eyed3.load(file_path) # TODO: add a check
@@ -614,6 +619,11 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
         self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
 
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        if not a0: return
+        a0.accept()
+        QApplication.quit()
+
     def autofill_titles_and_artists(self: TableWindow) -> None:
         for i in range(len(self.model.songs)):
             res = self.model.songs[i].get_title_and_artist_by_file_path()
@@ -691,7 +701,7 @@ class ImageViewer(QWidget):
         pixmap.loadFromData(image_data)
         label.setPixmap(pixmap)
         self.setLayout(layout)
-        self.resize(pixmap.width(), pixmap.height())
+        self.setFixedSize(pixmap.width(), pixmap.height())
 
 class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
