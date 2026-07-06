@@ -244,15 +244,28 @@ class Song(QObject):
     def __init__(self: Song, file_path: str) -> None:
         super().__init__()
         self.__new_cover = None
-        self.__file_path = file_path
-        self.__orig_file_path = file_path
-        self.__audio_file = eyed3.load(file_path) # TODO: add a check
+        self.__file_path = os.path.abspath(file_path)
+        self.__file_name = os.path.basename(self.__file_path)
+        self.__audio_file = eyed3.load(self.__file_path) # TODO: add a check
+        self.__remove_other_tags = False
         if not self.__audio_file: assert(False)
         if not self.__audio_file.tag:
             self.__audio_file.initTag()
 
+    @property
+    def remove_other_tags(self: Song) -> None:
+        raise AttributeError("'remove_other_tags' is not accessible.")
+
+    @remove_other_tags.setter
+    def remove_other_tags(self: Song, value: bool) -> None:
+        self.__remove_other_tags = value
+
     def __repr__(self) -> str:
-        return f"""Song(track="{self.track_num}" title={self.title.__repr__()} artist={self.artist.__repr__()} album={self.album.__repr__()} year={self.year.__repr__()} file_path={self.file_path.__repr__()} orig_file_path={self.orig_file_path.__repr__()})"""
+        return f"Song(track=\"{self.track_num}\" title={self.title.__repr__()} "+ \
+               f"artist={self.artist.__repr__()} album={self.album.__repr__()} "+ \
+               f"year={self.year.__repr__()} file_path={self.file_path.__repr__()}"+ \
+               ")"
+               # f" orig_file_path={self.orig_file_path.__repr__()})"
 
     @property
     def new_cover(self: Song) -> bytes | None:
@@ -263,14 +276,43 @@ class Song(QObject):
         if new_cover == self.__new_cover: return
         self.__new_cover = new_cover
 
-    def save(self: Song, preserve_file_time: bool = True) -> bool:
-        # 1. check for remove other tags if so -> remove all tags and set the needed tags
-        # 2. set the cover image to self.__selected_cover
-        raise NotImplementedError()
+    def __remove_all_tags(self: Song, preserve_file_time: bool) -> bool:
         ret = eyed3.id3.Tag.remove(self.file_path, eyed3.id3.ID3_ANY_VERSION,
                                     preserve_file_time=preserve_file_time)
         if ret: self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4) # type: ignore
         return ret
+
+    def _get_relevant_tags(self: Song) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "artist": self.artist,
+            "album": self.album,
+            "year": self.year,
+            "album_artist": self.album_artist,
+            "lyrics": self.lyrics,
+            "genre": self.genre,
+            "track_num": self.track_num,
+            "disc_num": self.disc_num,
+            "cover": self.new_cover if self.new_cover else self.cover
+        }
+
+    def save(self: Song, preserve_file_time: bool = True) -> bool:
+        if self.__remove_other_tags:
+            tags = self._get_relevant_tags()
+            if not self.__remove_all_tags(preserve_file_time): return False
+            self.title = tags["title"]
+            self.artist = tags["artist"]
+            self.album = tags["album"]
+            self.year = tags["year"]
+            self.album_artist = tags["album_artist"]
+            self.lyrics = tags["lyrics"]
+            self.genre = tags["genre"]
+            self.track_num = tags["track_num"]
+            self.disc_num = tags["disc_num"]
+            self.cover = tags["cover"]
+
+        self.__audio_file.tag.save(preserve_file_time=preserve_file_time) # type: ignore
+        return True
 
     def remove_images(self: Song) -> None:
         self._remove_frame_by_fid(eyed3.id3.frames.IMAGE_FID)
@@ -287,13 +329,13 @@ class Song(QObject):
         raise NotImplementedError()
         del self.__audio_file.tag.frame_set[eyed3.id3.frames.COMMENT_FID] # type: ignore
 
-    def get_title_and_artist_by_file_path(self: Song) -> tuple[str, str] | None:
-        file_path = os.path.splitext(
-                os.path.basename(self.file_path))[0]
+    def get_title_and_artist_by_file_name(self: Song) -> tuple[str, str] | None:
+        file_name = os.path.splitext(
+                os.path.basename(self.file_name))[0]
         # TODO: might want to add regex validation
-        splitted_file_path = file_path.split(' - ')
-        parts_n = len(splitted_file_path)
-        if parts_n == 2: return (splitted_file_path[0], splitted_file_path[1])
+        splitted_file_name = file_name.split(' - ')
+        parts_n = len(splitted_file_name)
+        if parts_n == 2: return (splitted_file_name[0], splitted_file_name[1])
         
     def _has_cover(self: Song) -> bool:
         return len(self.__audio_file.tag.images) > 0 # type: ignore
@@ -311,16 +353,16 @@ class Song(QObject):
     def file_path(self: Song) -> str:
         return self.__file_path
 
-    @file_path.setter
-    def file_path(self: Song, new_file_path: str) -> None:
-        if new_file_path == self.__file_path: return
-
-        self.__file_path = new_file_path
-        self.propertyChanged.emit("file_path", new_file_path)
-
     @property
-    def orig_file_path(self: Song) -> str:
-        return self.__orig_file_path
+    def file_name(self: Song) -> str:
+        return self.__file_name
+
+    @file_name.setter
+    def file_name(self: Song, new_file_name: str) -> None:
+        if new_file_name == self.__file_name: return
+
+        self.__file_name = new_file_name
+        self.propertyChanged.emit("file_name", new_file_name)
 
     @property
     def title(self: Song) -> str:
@@ -499,7 +541,7 @@ class SongsTableModel(QAbstractTableModel):
             "Album",
             "Year",
             "All Tags",
-            "File Path",
+            "File Name",
         ]
 
     @property
@@ -522,8 +564,8 @@ class SongsTableModel(QAbstractTableModel):
     def _on_song_prop_change(self: SongsTableModel, name: str, row: int) -> None:
         col = None
         match name:
-            case "file_path":
-                col = self.__columns.index("File Path")
+            case "file_name":
+                col = self.__columns.index("File Name")
             case "title":
                 col = self.__columns.index("Title")
             case "artist":
@@ -560,7 +602,7 @@ class SongsTableModel(QAbstractTableModel):
                 return song.year
             # case 'All Tags':
             case 'File Path':
-                return song.file_path
+                return song.file_name
 
     def setData(
         self: SongsTableModel,
@@ -583,8 +625,8 @@ class SongsTableModel(QAbstractTableModel):
             case 'Year':
                 if not value.isdigit(): return False
                 song.year = int(value)
-            case 'File Path':
-                song.file_path = value
+            case 'File Name':
+                song.file_name = value
             case _:
                 return False
         self.tableChanged.emit() # for resizing the columns on update
@@ -646,7 +688,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
     def autofill_titles_and_artists(self: TableWindow) -> None:
         for i in range(len(self.model.songs)):
-            res = self.model.songs[i].get_title_and_artist_by_file_path()
+            res = self.model.songs[i].get_title_and_artist_by_file_name()
             if not res: return # TODO: Better error
             self.model.songs[i].artist = res[0]
             self.model.songs[i].title = res[1]
@@ -749,7 +791,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.display_cover_image()
 
 
-        self.file_name_edit.setText(os.path.basename(self.song.file_path))
+        self.file_name_edit.setText(os.path.basename(self.song.file_name))
 
 
         # Change Cover Button
@@ -798,7 +840,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     def open_copy_tags_dialog(self: EditTagsDialog, already_opened: bool) -> None:
         selected_song = None
         if already_opened:
-            self.dlg = SongsListDialog([x.file_path for x in self.songs])
+            self.dlg = SongsListDialog([x.file_name for x in self.songs])
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
             selected_idx = self.dlg.get_selected()
             if selected_idx is not None: selected_song = self.songs[selected_idx]
@@ -867,7 +909,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.song.album = self.album_edit.text()
         self.song.album_artist = self.album_artist_edit.text()
         self.song.genre = self.genre_edit.text()
-        self.song.file_path = self.file_name_edit.text()
+        self.song.file_name = self.file_name_edit.text()
         self.song.lyrics = self.lyrics_edit.toPlainText()
 
         year_edit = self.year_edit.text()
@@ -879,10 +921,12 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.song.new_cover = self.new_cover
         if not self.cover and self.song.cover: self.song.remove_images()
 
+        self.song.remove_other_tags = self.remove_other_tags_checkbox.isChecked()
+
         self.close()
 
     def autofill_title_and_artist(self: EditTagsDialog):
-        res = self.song.get_title_and_artist_by_file_path() # Better error
+        res = self.song.get_title_and_artist_by_file_name() # Better error
         if not res: return
         self.artist_edit.setText(res[0])
         self.title_edit.setText(res[1])
