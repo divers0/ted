@@ -261,9 +261,9 @@
               </widget>
              </item>
              <item row="1" column="0">
-              <widget class="QCheckBox" name="remove_v1_checkbox">
+              <widget class="QCheckBox" name="preserve_file_time_checkbox">
                <property name="text">
-                <string>Remove ID3V1</string>
+                <string>Preserve the file's date</string>
                </property>
                <property name="checked">
                 <bool>true</bool>
@@ -324,7 +324,7 @@
   <tabstop>genre_edit</tabstop>
   <tabstop>remove_other_tags_checkbox</tabstop>
   <tabstop>crop_cover_image</tabstop>
-  <tabstop>remove_v1_checkbox</tabstop>
+  <tabstop>preserve_file_time_checkbox</tabstop>
   <tabstop>fill_ta_button</tabstop>
   <tabstop>copy_from_another_file_button</tabstop>
   <tabstop>lyrics_edit</tabstop>

@@ -247,14 +247,23 @@ class Song(QObject):
         self.__file_path = os.path.abspath(file_path)
         self.__file_name = os.path.basename(self.__file_path)
         self.__audio_file = eyed3.load(self.__file_path) # TODO: add a check
-        self.__remove_other_tags = False
+        self.__remove_other_tags = True
+        self.__preserve_file_time = True
         if not self.__audio_file: assert(False)
         if not self.__audio_file.tag:
             self.__audio_file.initTag()
 
     @property
-    def remove_other_tags(self: Song) -> None:
-        raise AttributeError("'remove_other_tags' is not accessible.")
+    def preserve_file_time(self: Song) -> bool:
+        return self.__preserve_file_time
+
+    @preserve_file_time.setter
+    def preserve_file_time(self: Song, value: bool) -> None:
+        self.__preserve_file_time = value
+
+    @property
+    def remove_other_tags(self: Song) -> bool:
+        return self.__remove_other_tags
 
     @remove_other_tags.setter
     def remove_other_tags(self: Song, value: bool) -> None:
@@ -296,10 +305,10 @@ class Song(QObject):
             "cover": self.new_cover if self.new_cover else self.cover
         }
 
-    def save(self: Song, preserve_file_time: bool = True) -> bool:
+    def save(self: Song) -> bool:
         if self.__remove_other_tags:
             tags = self._get_relevant_tags()
-            if not self.__remove_all_tags(preserve_file_time): return False
+            if not self.__remove_all_tags(self.__preserve_file_time): return False
             self.title = tags["title"]
             self.artist = tags["artist"]
             self.album = tags["album"]
@@ -311,7 +320,7 @@ class Song(QObject):
             self.disc_num = tags["disc_num"]
             self.cover = tags["cover"]
 
-        self.__audio_file.tag.save(preserve_file_time=preserve_file_time) # type: ignore
+        self.__audio_file.tag.save(preserve_file_time=self.__preserve_file_time) # type: ignore
         return True
 
     def remove_images(self: Song) -> None:
@@ -829,6 +838,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
                 QIcon(), "Browse for file", lambda: self.open_copy_tags_dialog(False),
                 Qt.ConnectionType.AutoConnection)
 
+        self.preserve_file_time_checkbox.setChecked(self.song.preserve_file_time)
+        self.remove_other_tags_checkbox.setChecked(self.song.remove_other_tags)
+
     @property
     def cover(self: EditTagsDialog) -> bytes | None:
         return self.__cover
@@ -922,6 +934,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         if not self.cover and self.song.cover: self.song.remove_images()
 
         self.song.remove_other_tags = self.remove_other_tags_checkbox.isChecked()
+        self.song.preserve_file_time = self.preserve_file_time_checkbox.isChecked()
 
         self.close()
 

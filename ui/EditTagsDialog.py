@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'new2.ui'
+# Form implementation generated from reading ui file 'edit_tags_dialog.ui'
 #
 # Created by: PyQt6 UI code generator 6.11.0
 #
@@ -146,10 +146,10 @@ class Ui_EditTagsDialog(object):
         self.crop_cover_image = QtWidgets.QCheckBox(parent=self.bottom_frame)
         self.crop_cover_image.setObjectName("crop_cover_image")
         self.gridLayout_2.addWidget(self.crop_cover_image, 0, 1, 1, 1)
-        self.remove_v1_checkbox = QtWidgets.QCheckBox(parent=self.bottom_frame)
-        self.remove_v1_checkbox.setChecked(True)
-        self.remove_v1_checkbox.setObjectName("remove_v1_checkbox")
-        self.gridLayout_2.addWidget(self.remove_v1_checkbox, 1, 0, 1, 1)
+        self.preserve_file_time_checkbox = QtWidgets.QCheckBox(parent=self.bottom_frame)
+        self.preserve_file_time_checkbox.setChecked(True)
+        self.preserve_file_time_checkbox.setObjectName("preserve_file_time_checkbox")
+        self.gridLayout_2.addWidget(self.preserve_file_time_checkbox, 1, 0, 1, 1)
         self.verticalLayout_6.addLayout(self.gridLayout_2)
         self.verticalLayout_5 = QtWidgets.QVBoxLayout()
         self.verticalLayout_5.setObjectName("verticalLayout_5")
@@ -186,8 +186,8 @@ class Ui_EditTagsDialog(object):
         EditTagsDialog.setTabOrder(self.album_artist_edit, self.genre_edit)
         EditTagsDialog.setTabOrder(self.genre_edit, self.remove_other_tags_checkbox)
         EditTagsDialog.setTabOrder(self.remove_other_tags_checkbox, self.crop_cover_image)
-        EditTagsDialog.setTabOrder(self.crop_cover_image, self.remove_v1_checkbox)
-        EditTagsDialog.setTabOrder(self.remove_v1_checkbox, self.fill_ta_button)
+        EditTagsDialog.setTabOrder(self.crop_cover_image, self.preserve_file_time_checkbox)
+        EditTagsDialog.setTabOrder(self.preserve_file_time_checkbox, self.fill_ta_button)
         EditTagsDialog.setTabOrder(self.fill_ta_button, self.copy_from_another_file_button)
         EditTagsDialog.setTabOrder(self.copy_from_another_file_button, self.lyrics_edit)
 
@@ -208,7 +208,7 @@ class Ui_EditTagsDialog(object):
         self.genre_label.setText(_translate("EditTagsDialog", "Genre"))
         self.remove_other_tags_checkbox.setText(_translate("EditTagsDialog", "Remove other tags"))
         self.crop_cover_image.setText(_translate("EditTagsDialog", "Crop the cover image to square"))
-        self.remove_v1_checkbox.setText(_translate("EditTagsDialog", "Remove ID3V1"))
+        self.preserve_file_time_checkbox.setText(_translate("EditTagsDialog", "Preserve the file\'s date"))
         self.fill_ta_button.setText(_translate("EditTagsDialog", "Fill title and artist based on file name"))
         self.copy_from_another_file_button.setText(_translate("EditTagsDialog", "Copy tags from another file"))
         self.tabs.setTabText(self.tabs.indexOf(self.other_tags_tab), _translate("EditTagsDialog", "Other Tags"))
