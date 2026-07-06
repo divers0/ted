@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>EditTagsDialog</class>
+ <widget class="QDialog" name="EditTagsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>690</width>
+    <height>640</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Edit Tags</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <widget class="QListWidget" name="music_list"/>
+     <widget class="QTabWidget" name="tabs">
+      <property name="minimumSize">
+       <size>
+        <width>450</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="currentIndex">
+       <number>1</number>
+      </property>
+      <widget class="QWidget" name="lyrics_tab">
+       <attribute name="title">
+        <string>Lyrics</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QPlainTextEdit" name="lyrics_edit"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="other_tags_tab">
+       <attribute name="title">
+        <string>Other Tags</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <item>
+         <layout class="QHBoxLayout" name="top_layout">
+          <item>
+           <widget class="QLabel" name="cover_image_label">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>140</width>
+              <height>140</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">border: 1px solid black</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Policy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>35</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_4">
+            <item>
+             <widget class="QLineEdit" name="file_name_edit"/>
+            </item>
+            <item alignment="Qt::AlignmentFlag::AlignHCenter">
+             <widget class="QPushButton" name="change_cover_button">
+              <property name="text">
+               <string>Change Cover</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="title_label">
+            <property name="text">
+             <string>Title</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="title_edit"/>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="track_label">
+            <property name="text">
+             <string>Track</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QSpinBox" name="track_count_spinbox"/>
+          </item>
+          <item row="0" column="4">
+           <widget class="QLabel" name="slash_1">
+            <property name="text">
+             <string>  /</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="5">
+           <widget class="QSpinBox" name="track_total_spinbox"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="artist_label">
+            <property name="text">
+             <string>Artist</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="artist_edit"/>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="disc_label">
+            <property name="text">
+             <string>Disc</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QSpinBox" name="disc_count_spinbox"/>
+          </item>
+          <item row="1" column="4">
+           <widget class="QLabel" name="slash_2">
+            <property name="text">
+             <string>  /</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="5">
+           <widget class="QSpinBox" name="disc_total_spinbox"/>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="album_label">
+            <property name="text">
+             <string>Album</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="album_edit"/>
+          </item>
+          <item row="2" column="2">
+           <widget class="QLabel" name="year_label">
+            <property name="text">
+             <string>Year</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="3" colspan="3">
+           <widget class="QLineEdit" name="year_edit"/>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="album_artist_lalbel">
+            <property name="text">
+             <string>Album Artist</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLineEdit" name="album_artist_edit"/>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="genre_label">
+            <property name="text">
+             <string>Genre</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLineEdit" name="genre_edit"/>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QFrame" name="bottom_frame">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>71</height>
+           </size>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Shadow::Raised</enum>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_6">
+           <property name="spacing">
+            <number>6</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <layout class="QGridLayout" name="gridLayout_2">
+             <item row="0" column="0">
+              <widget class="QCheckBox" name="remove_other_tags_checkbox">
+               <property name="text">
+                <string>Remove other tags</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QCheckBox" name="crop_cover_image">
+               <property name="text">
+                <string>Crop the cover image to square</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QCheckBox" name="remove_v1_checkbox">
+               <property name="text">
+                <string>Remove ID3V1</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_5">
+             <item>
+              <widget class="QPushButton" name="fill_ta_button">
+               <property name="text">
+                <string>Fill title and artist based on file name</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="copy_from_another_file_button">
+               <property name="text">
+                <string>Copy tags from another file</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="button_box">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>music_list</tabstop>
+  <tabstop>tabs</tabstop>
+  <tabstop>file_name_edit</tabstop>
+  <tabstop>change_cover_button</tabstop>
+  <tabstop>title_edit</tabstop>
+  <tabstop>track_count_spinbox</tabstop>
+  <tabstop>track_total_spinbox</tabstop>
+  <tabstop>artist_edit</tabstop>
+  <tabstop>disc_count_spinbox</tabstop>
+  <tabstop>disc_total_spinbox</tabstop>
+  <tabstop>album_edit</tabstop>
+  <tabstop>year_edit</tabstop>
+  <tabstop>album_artist_edit</tabstop>
+  <tabstop>genre_edit</tabstop>
+  <tabstop>remove_other_tags_checkbox</tabstop>
+  <tabstop>crop_cover_image</tabstop>
+  <tabstop>remove_v1_checkbox</tabstop>
+  <tabstop>fill_ta_button</tabstop>
+  <tabstop>copy_from_another_file_button</tabstop>
+  <tabstop>lyrics_edit</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

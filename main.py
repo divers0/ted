@@ -1,0 +1,859 @@
+from __future__ import annotations
+import os
+import sys
+import eyed3
+import eyed3.id3
+from eyed3.core import CountAndTotalTuple
+
+from typing import Any, Callable
+from enum import Enum
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QEvent,
+    QRegularExpression,
+    Qt,
+    QModelIndex,
+    QObject,
+    pyqtSignal,
+    QAbstractTableModel,
+    QSortFilterProxyModel,
+)
+from PyQt6.QtGui import (
+    QAction,
+    QKeySequence,
+    QMouseEvent,
+    QPainter,
+    QPixmap,
+    QRegularExpressionValidator,
+    QIcon,
+)
+
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QDialog,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QFileDialog,
+    QItemDelegate,
+    QSpinBox,
+    QStyle,
+    QStyleOptionButton,
+    QStyledItemDelegate,
+    QWidget,
+    QLineEdit,
+    QStyleOptionViewItem,
+    QTableView,
+    # uic
+)
+
+# For Debug purposes
+from ui.TableWindow import Ui_TableWindow
+from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
+from ui.EditTagsDialog import Ui_EditTagsDialog
+from ui.ListDialog import Ui_ListDialog
+
+DEBUG = 1
+    
+class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
+    def __init__(self: AlbumCreationDialog, populate_table: Callable[[list[Song]], None]) -> None:
+        super().__init__()
+        self.setupUi(self)
+        self.setFixedSize(self.size())
+        self.populate_table = populate_table 
+
+        self.cover_button.clicked.connect(self.cover_browse_clicked)
+        self.cover_button.setAutoDefault(True)
+
+        self.clear_image_button.clicked.connect(self.clear_image_button_clicked)
+        self.clear_image_button.setIcon(QIcon("./icons/delete.png")) # TODO
+        self.clear_image_button.setAutoDefault(True)
+
+        self.songs_button.clicked.connect(self.songs_browse_clicked)
+        self.songs_button.setAutoDefault(True)
+
+        self.status_bar = QLabel()
+        self.status_bar_layout.addWidget(self.status_bar)
+
+        self.button_box.accepted.connect(self.confirm_button_clicked)
+        self.button_box.rejected.connect(self.close)
+        for button in self.button_box.buttons():
+            if isinstance(button, QPushButton):
+                button.setAutoDefault(True)
+
+        self.year_edit.setValidator(QRegularExpressionValidator(
+                                    QRegularExpression("[1-9][0-9]{3}")))
+        self.selected_cover = ""
+        self.selected_songs = []
+
+        if DEBUG:
+            self.year_edit.setText("2010")
+            self.title_edit.setText("Diamond Eyes")
+            self.artist_edit.setText("Deftones")
+            self.set_cover_path("/run/media/diverso/PHILIPS/Covers/diamondeyes.jpg")
+            # self.set_song_paths(["/home/diverso/p/id3v2.4/01_Empty.mp3"])
+            self.set_song_paths(["/home/diverso/p/id3v2.4/The Stranglers - Golden Brown.mp3"])
+
+            # music_path = "/home/diverso/Music"
+            # self.set_song_paths([os.path.join(music_path, x) for x in os.listdir(music_path) if os.path.isfile(os.path.join(music_path, x))])
+
+            # music_path = "/run/media/diverso/PHILIPS/Music"
+            # self.set_song_paths([os.path.join(music_path, x) for x in ("Muse - Starlight.mp3", "Muse - Knights of Cydonia.mp3", "Muse - Supermassive Black Hole.mp3")])
+
+    def clear_image_button_clicked(self: AlbumCreationDialog) -> None:
+        self.selected_cover = ""
+        self.selected_cover_filename_label.setText("")
+
+    def set_cover_path(self: AlbumCreationDialog, path: str) -> None:
+        self.selected_cover = path
+        self.selected_cover_filename_label.setText(os.path.basename(path))
+
+    def set_song_paths(self: AlbumCreationDialog, song_paths: list[str]) -> None:
+        self.selected_songs = song_paths
+        self.selected_songs_filenames_label.setText(
+            ", ".join([os.path.basename(x) for x in song_paths]))
+
+    def cover_browse_clicked(self: AlbumCreationDialog) -> None:
+        self.set_cover_path(QFileDialog.getOpenFileName(
+                self, "Select Cover Image", ".", "*.jpg")[0])
+
+    def songs_browse_clicked(self: AlbumCreationDialog) -> None:
+        self.set_song_paths(QFileDialog.getOpenFileNames(
+                self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0])
+
+    def confirm_button_clicked(self: AlbumCreationDialog) -> None:
+        if self.title_edit.displayText() == "":
+            self.status_bar.setText("Enter the album's title.")
+            return
+        if self.artist_edit.displayText() == "":
+            self.status_bar.setText("Enter the artist's name.")
+            return
+        if self.year_edit.displayText() == "":
+            self.status_bar.setText("Enter the album's release year.")
+            return
+        if not self.year_edit.hasAcceptableInput(): # Probably useless but i'll keep it just in case
+            self.status_bar.setText("Enter a valid album release year.")
+            return
+        if len(self.selected_songs) == 0:
+            self.status_bar.setText("Select songs for the album.")
+            return
+        self.status_bar.setText("")
+
+        with open(self.selected_cover, "rb") as f:
+            cover_bytes = f.read()
+        songs = [Song(path, cover_bytes) for path in self.selected_songs]
+        self.populate_table(songs)
+        self.close()
+
+class YearLineEditDelegate(QItemDelegate):
+    def createEditor(
+        self: YearLineEditDelegate,
+        parent: QWidget | None,
+        option: QStyleOptionViewItem,
+        index: QModelIndex) -> QLineEdit:
+        editor = QLineEdit(parent)
+        editor.setValidator(QRegularExpressionValidator(
+                            QRegularExpression("[1-9][0-9]{3}")))
+        return editor
+
+class EditTagsButtonDelegate(QStyledItemDelegate):
+    clicked = pyqtSignal(object)
+
+    def paint(
+        self: EditTagsButtonDelegate,
+        painter: QPainter | None,
+        option: QStyleOptionViewItem,
+        index: QModelIndex) -> None:
+        opt = QStyleOptionButton()
+        opt.rect = option.rect
+        opt.text = "Edit"
+        style = QApplication.style()
+        if not style: return
+        style.drawControl(QStyle.ControlElement.CE_PushButton, opt, painter)
+
+    def editorEvent(
+        self: EditTagsButtonDelegate,
+        event: QEvent | None,
+        model: QAbstractItemModel | None,
+        option: QStyleOptionViewItem,
+        index: QModelIndex) -> bool:
+        if not event: return False
+        if event.type() != QEvent.Type.MouseButtonRelease: return False
+        assert(isinstance(event, QMouseEvent))
+        if not option.rect.contains(event.position().toPoint()): return False
+
+        self.clicked.emit(index)
+        return True
+
+class TrackSpinBoxDelegate(QStyledItemDelegate):
+    # def paint(self, painter: QPainter | None, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+    #     opt = QStyleOptionSpinBox()
+    #     opt.rect = option.rect
+    #     opt.state = option.state
+    #     # opt.frame = True
+    #     opt.stepEnabled = QAbstractSpinBox.StepEnabledFlag.StepUpEnabled | \
+    #                         QAbstractSpinBox.StepEnabledFlag.StepDownEnabled
+
+    #     style = QApplication.style()
+    #     if not style: return
+    #     style.drawComplexControl(QStyle.ComplexControl.CC_SpinBox, opt, painter)
+
+    def createEditor(
+        self: TrackSpinBoxDelegate,
+parent: QWidget | None,
+option: QStyleOptionViewItem,
+index: QModelIndex) -> QWidget | None:
+        editor = QSpinBox(parent)
+        editor.setFrame(False)
+        editor.setMinimum(0)
+        editor.setMaximum(100)
+        return editor
+
+    # def setEditorData(self, editor: QWidget | None, index: QModelIndex) -> None:
+    #     model = index.model()
+    #     if not model: return
+    #     value = model.data(index, Qt.ItemDataRole.EditRole)
+    #     if not isinstance(editor, QSpinBox): return
+    #     editor.setValue(value)
+    # def setModelData(self, editor: QWidget | None, model: QAbstractItemModel | None, index: QModelIndex) -> None:
+    #     if not isinstance(editor, QSpinBox): return
+    #     editor.interpretText()
+    #     value = editor.value()
+    #     if not model: return
+    #     model.setData(index, value, Qt.ItemDataRole.EditRole)
+    # def updateEditorGeometry(self, editor: QWidget | None, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+    #     if not editor: return
+    #     editor.setGeometry(option.rect)
+
+class Song(QObject):
+    #                           proerty_name, new_value
+    propertyChanged = pyqtSignal(str, object)
+
+    def __init__(self: Song, file_path: str, new_cover: bytes | None = None) -> None:
+        super().__init__()
+        self.__new_cover = new_cover
+        self.__file_path = file_path
+        self.__orig_file_path = file_path
+        self.__audio_file = eyed3.load(file_path) # TODO: add a check
+        if not self.__audio_file: assert(False)
+        if not self.__audio_file.tag:
+            self.__audio_file.initTag()
+
+    def __repr__(self) -> str:
+        return f"""Song(track="{self.track_num}" title={self.title.__repr__()} artist={self.artist.__repr__()} album={self.album.__repr__()} year={self.year.__repr__()} file_path={self.file_path.__repr__()} orig_file_path={self.orig_file_path.__repr__()})"""
+
+    @property
+    def new_cover(self: Song) -> bytes | None:
+        return self.__new_cover
+
+    @new_cover.setter
+    def new_cover(self: Song, new_cover: bytes | None) -> None:
+        if new_cover == self.__new_cover: return
+        self.__new_cover = new_cover
+
+    def save(self: Song, preserve_file_time: bool = True) -> bool:
+        # 1. check for remove other tags if so -> remove all tags and set the needed tags
+        # 2. set the cover image to self.__selected_cover
+        raise NotImplementedError()
+        ret = eyed3.id3.Tag.remove(self.file_path, eyed3.id3.ID3_ANY_VERSION,
+                                    preserve_file_time=preserve_file_time)
+        if ret: self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4) # type: ignore
+        return ret
+
+    def remove_images(self: Song) -> None:
+        self._remove_frame_by_fid(eyed3.id3.frames.IMAGE_FID)
+
+    def _remove_frame_by_fid(self: Song, fid: bytes) -> None:
+        del self.__audio_file.tag.frame_set[fid] # type: ignore
+
+    def remove_unknown_tags(self: Song) -> None:
+        raise NotImplementedError()
+        for fid in self.__audio_file.tag.unknown_frame_ids: # type: ignore
+            del self.__audio_file.tag.frame_set[fid] # type: ignore
+
+    def remove_comments(self: Song) -> None:
+        raise NotImplementedError()
+        del self.__audio_file.tag.frame_set[eyed3.id3.frames.COMMENT_FID] # type: ignore
+
+    def get_title_and_artist_by_file_path(self: Song) -> tuple[str, str] | None:
+        file_path = os.path.splitext(
+                os.path.basename(self.file_path))[0]
+        # TODO: might want to add regex validation
+        splitted_file_path = file_path.split(' - ')
+        parts_n = len(splitted_file_path)
+        if parts_n == 2: return (splitted_file_path[0], splitted_file_path[1])
+        
+    def _has_cover(self: Song) -> bool:
+        return len(self.__audio_file.tag.images) > 0 # type: ignore
+
+    @property
+    def cover(self: Song) -> bytes | None:
+        if not self._has_cover(): return
+        return self.__audio_file.tag.images[0].image_data # type: ignore
+
+    @cover.setter
+    def cover(self: Song, image_data: bytes) -> None:
+        self.__audio_file.tag.images.set(3, image_data, "image/jpeg") # type: ignore
+
+    @property
+    def file_path(self: Song) -> str:
+        return self.__file_path
+
+    @file_path.setter
+    def file_path(self: Song, new_file_path: str) -> None:
+        if new_file_path == self.__file_path: return
+
+        self.__file_path = new_file_path
+        self.propertyChanged.emit("file_path", new_file_path)
+
+    @property
+    def orig_file_path(self: Song) -> str:
+        return self.__orig_file_path
+
+    @property
+    def title(self: Song) -> str | None:
+        return self.__audio_file.tag.title # type: ignore
+
+    @title.setter
+    def title(self: Song, new_title: str | None) -> None:
+        if new_title == self.__audio_file.tag.title: return # type: ignore
+
+        self.__audio_file.tag.title = new_title # type: ignore
+        self.propertyChanged.emit("title", new_title)
+
+    @property
+    def artist(self: Song) -> str | None:
+        return self.__audio_file.tag.artist # type: ignore
+
+    @artist.setter
+    def artist(self: Song, new_artist: str) -> None:
+        if new_artist == self.__audio_file.tag.artist: return # type: ignore
+
+        self.__audio_file.tag.artist = new_artist # type: ignore
+        self.propertyChanged.emit("artist", new_artist)
+
+    @property
+    def track_num(self: Song) -> CountAndTotalTuple: # TODO
+        track_num = self.__audio_file.tag.track_num # type: ignore
+        if not track_num: return CountAndTotalTuple(count=0, total=0)
+        count = total = 0
+        if track_num.count: count = track_num.count
+        if track_num.total: total = track_num.total
+        return CountAndTotalTuple(count=count, total=total)
+
+    @track_num.setter
+    def track_num(self: Song, new_track_num: tuple[int, int]) -> None:
+        if new_track_num == self.__audio_file.tag.track_num: return # type: ignore
+
+        self.__audio_file.tag.track_num = new_track_num # type: ignore
+        self.propertyChanged.emit("track_num", new_track_num)
+
+    @property
+    def disc_num(self: Song) -> CountAndTotalTuple: # TODO
+        disc_num = self.__audio_file.tag.disc_num # type: ignore
+        if not disc_num: return CountAndTotalTuple(count=0, total=0)
+        count = total = 0
+        if disc_num.count: count = disc_num.count
+        if disc_num.total: total = disc_num.total
+        return CountAndTotalTuple(count=count, total=total)
+
+    @disc_num.setter
+    def disc_num(self: Song, new_disc_num: tuple[int, int]) -> None:
+        if new_disc_num == self.__audio_file.tag.disc_num: return # type: ignore
+
+        self.__audio_file.tag.disc_num = new_disc_num # type: ignore
+        self.propertyChanged.emit("disc_num", new_disc_num)
+
+    @property
+    def album(self: Song) -> str | None:
+        return self.__audio_file.tag.album # type: ignore
+
+    @album.setter
+    def album(self: Song, new_album: str) -> None:
+        if new_album == self.__audio_file.tag.album: return # type: ignore
+
+        self.__audio_file.tag.album = new_album # type: ignore
+        self.propertyChanged.emit("album", new_album)
+
+    @property
+    def album_artist(self: Song) -> str | None:
+        return self.__audio_file.tag.album_artist # type: ignore
+
+    @album_artist.setter
+    def album_artist(self: Song, new_album_artist: str) -> None:
+        if new_album_artist == self.__audio_file.tag.album_artist: return # type: ignore
+
+        self.__audio_file.tag.album_artist = new_album_artist # type: ignore
+
+    @property
+    def genre(self: Song) -> str:
+        genre = self.__audio_file.tag.genre # type: ignore
+        if not genre: return ""
+        return genre.name
+
+    @genre.setter
+    def genre(self: Song, new_genre: str) -> None:
+        if new_genre == self.__audio_file.tag.genre: return # type: ignore
+
+        self.__audio_file.tag.genre = new_genre # type: ignore
+
+    @property
+    def lyrics(self: Song) -> str:
+        if len(self.__audio_file.tag.lyrics) == 0: return '' # type: ignore
+        return self.__audio_file.tag.lyrics[0].text # type: ignore
+
+    @lyrics.setter
+    def lyrics(self: Song, new_lyrics: str) -> None:
+        if new_lyrics == self.lyrics: return
+        if new_lyrics == "":
+            self._remove_frame_by_fid(eyed3.id3.frames.LYRICS_FID)
+            return
+        self.__audio_file.tag.lyrics.set(new_lyrics) # type: ignore
+
+    # @property
+    # def composer(self: Song) -> str | None:
+    #     return self.__audio_file.tag.composer # type: ignore
+
+    # @composer.setter
+    # def composer(self: Song, new_composer: str) -> None:
+    #     if new_composer == self.__audio_file.tag.composer: return # type: ignore
+    #     self.__audio_file.tag.composer = new_composer # type: ignore
+
+    # @property
+    # def performer(self: Song) -> str | None:
+    #     return self.__audio_file.tag.original_artist # type: ignore
+
+    # @performer.setter
+    # def performer(self: Song, new_performer: str) -> None:
+    #     if new_performer == self.__audio_file.tag.original_artist: return # type: ignore
+    #     self.__audio_file.tag.original_artist = new_performer # type: ignore
+
+    # @property
+    # def comment(self: Song) -> str | None:
+    #     if not self.__audio_file: return
+    #     comments = self.__audio_file.tag.comments # type: ignore
+    #     if len(comments) == 0: return
+    #     comment = comments[0].text
+    #     for c in comments:
+    #         if c.description == "": comment = c.text
+    #     return comment
+
+    # @comment.setter
+    # def comment(self: Song, new_comment: str) -> None:
+    #     if not self.__audio_file: return
+    #     if new_comment == self.__audio_file.tag.comment: return
+
+    #     self.__audio_file.tag.comment = new_comment
+
+    def fix_date(self: Song) -> int:
+        self.__audio_file.tag.recording_date = self.__audio_file.tag.getBestDate() # type: ignore
+        self.__audio_file.tag.original_release_date = None # type: ignore
+        self.__audio_file.tag.release_date = None # type: ignore
+        return self.__audio_file.tag.recording_date.year # type: ignore
+
+    @property
+    def year(self: Song) -> int | None:
+        best_date = self.__audio_file.tag.getBestDate(prefer_recording_date=True) # type: ignore
+        if not best_date: return
+        if best_date != self.__audio_file.tag.recording_date: # type: ignore
+            return self.fix_date()
+        return best_date.year
+
+    @year.setter
+    def year(self: Song, new_year: int) -> None:
+        if new_year == self.year: return
+        self.__audio_file.tag.recording_date = new_year # type: ignore
+        self.propertyChanged.emit("year", new_year)
+
+
+class SongsTableModel(QAbstractTableModel):
+    tableChanged = pyqtSignal()
+
+    def __init__(self: SongsTableModel) -> None:
+        super().__init__()
+        self.__songs = []
+        self.__columns = [
+            "Track #",
+            "Title",
+            "Artist",
+            "Album",
+            "Year",
+            "All Tags",
+            "File Path",
+        ]
+
+    @property
+    def columns(self: SongsTableModel) -> list[str]:
+        return self.__columns
+
+    @property
+    def songs(self: SongsTableModel) -> list[Song]:
+        return self.__songs
+
+    def add_songs(self: SongsTableModel, songs: list[Song]) -> None:
+        songs_n = len(self.__songs)
+        self.beginInsertRows(QModelIndex(), songs_n, songs_n+len(songs)-1)
+        for row, song in enumerate(songs):
+            song.propertyChanged.connect(
+                lambda name, _, row=row: self._on_song_prop_change(name, row))
+            self.__songs.append(song)
+        self.endInsertRows()
+
+    def _on_song_prop_change(self: SongsTableModel, name: str, row: int) -> None:
+        col = None
+        match name:
+            case "file_path":
+                col = self.__columns.index("File Path")
+            case "title":
+                col = self.__columns.index("Title")
+            case "artist":
+                col = self.__columns.index("Artist")
+            case "track_num":
+                col = self.__columns.index("Track #")
+            case "album":
+                col = self.__columns.index("Album")
+            case "year":
+                col = self.__columns.index("Year")
+        if not col: return
+
+        # they're the same because we're only trying to specify one cell
+        top_left = bottom_right = self.index(row, col)
+        self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole])
+        self.tableChanged.emit() # for resizing the columns on update
+
+    def data(self: SongsTableModel, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        if not index.isValid(): return
+        song = self.__songs[index.row()]
+        col = self.__columns[index.column()]
+        if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole): return
+        # if role != Qt.ItemDataRole.DisplayRole: return
+        match col:
+            case 'Track #':
+                track_num = song.track_num
+                if not track_num: return 0
+                return track_num.count
+            case 'Title':
+                return song.title
+            case 'Artist':
+                return song.artist
+            case 'Album':
+                return song.album
+            case 'Year':
+                return song.year
+            # case 'All Tags':
+            case 'File Path':
+                return song.file_path
+
+    def setData(
+        self: SongsTableModel,
+        index: QModelIndex,
+        value: str,
+        role: int = Qt.ItemDataRole.EditRole) -> bool:
+        if not index.isValid() or role != Qt.ItemDataRole.EditRole: return False
+        song = self.__songs[index.row()]
+        col = self.__columns[index.column()]
+        match col:
+            case 'Track #':
+                if not str(value).isdigit(): return False
+                song.track_num = (value, song.track_num.total)
+            case 'Title':
+                song.title = value
+            case 'Artist':
+                song.artist = value
+            case 'Album':
+                song.album = value
+            case 'Year':
+                if not value.isdigit(): return False
+                song.year = value
+            case 'File Path':
+                song.file_path = value
+            case _:
+                return False
+        self.tableChanged.emit() # for resizing the columns on update
+        return True
+
+
+    def flags(self:SongsTableModel, index: QModelIndex) -> Qt.ItemFlag:
+        if not index.isValid(): return Qt.ItemFlag.NoItemFlags
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        if index.column() == self.__columns.index("All Tags"): return flags
+        return flags | Qt.ItemFlag.ItemIsEditable
+
+    def headerData(
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        if role != Qt.ItemDataRole.DisplayRole: return
+        if orientation != Qt.Orientation.Horizontal: return
+        return self.__columns[section]
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return len(self.__songs)
+
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return len(self.__columns)
+
+class TableWindow(QMainWindow, Ui_TableWindow):
+    def __init__(self: TableWindow) -> None:
+        super().__init__()
+        self.setupUi(self)
+        self.centralwidget.destroy()
+
+        self.action_new.triggered.connect(self.new_album_window)
+        self.action_debug.triggered.connect(self.debug)
+        self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
+
+        self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
+
+    def autofill_titles_and_artists(self: TableWindow) -> None:
+        for i in range(len(self.model.songs)):
+            res = self.model.songs[i].get_title_and_artist_by_file_path()
+            if not res: return # TODO: Better error
+            self.model.songs[i].artist = res[0]
+            self.model.songs[i].title = res[1]
+
+    def debug(self: TableWindow) -> None:
+        print(" ---- debug ----")
+        print(" ---- end debug ----")
+
+    def new_album_window(self: TableWindow) -> None:
+        self.album_creation_dialog = AlbumCreationDialog(self.add_songs)
+        self.album_creation_dialog.show()
+
+    def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
+        if index.model() is self.proxy: index = self.proxy.mapToSource(index)
+        row = index.row()
+        self.dialog = EditTagsDialog(self.model.songs, row)
+        self.dialog.show()
+
+    
+    def add_songs(self: TableWindow, songs: list[Song]) -> None:
+        self.model = SongsTableModel()
+
+        self.proxy = QSortFilterProxyModel()
+        self.proxy.setSourceModel(self.model)
+
+        self.view = QTableView()
+        self.view.setModel(self.proxy)
+        self.view.setSortingEnabled(True)
+        self.setCentralWidget(self.view)
+
+        self.year_line_edit_delegate = YearLineEditDelegate()
+        self.view.setItemDelegateForColumn(self.model.columns.index("Year"), self.year_line_edit_delegate)
+
+        self.edit_tags_button_delegate = EditTagsButtonDelegate()
+        self.edit_tags_button_delegate.clicked.connect(self.all_tags_button_clicked)
+        self.view.setItemDelegateForColumn(self.model.columns.index("All Tags"), self.edit_tags_button_delegate)
+
+        self.track_item_delegate = TrackSpinBoxDelegate()
+        self.view.setItemDelegateForColumn(self.model.columns.index("Track #"), self.track_item_delegate)
+
+        vertical_header = self.view.verticalHeader()
+        if vertical_header is not None:
+            vertical_header.hide()
+
+        self.model.add_songs(songs)
+        self.view.resizeColumnsToContents()
+        self.model.tableChanged.connect(self.view.resizeColumnsToContents)
+
+class SongsListDialog(QDialog, Ui_ListDialog):
+    def __init__(self: SongsListDialog, items: list[str]) -> None:
+        super().__init__()
+        self.setupUi(self)
+        self.songs_list.addItems(items)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.songs_list.itemDoubleClicked.connect(self.accept)
+
+    def get_selected(self: SongsListDialog) -> int | None:
+        selected_items = self.songs_list.selectedIndexes()
+        if len(selected_items) == 0: return
+        return selected_items[0].row()
+
+class EditTagsDialog(QDialog, Ui_EditTagsDialog):
+    CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
+
+    def __init__(self: EditTagsDialog, songs: list[Song], index: int) -> None:
+        super().__init__()
+        self.setupUi(self)
+        self.setFixedSize(self.size())
+        self.songs = songs
+        self.index = index
+        self.song = self.songs[self.index]
+
+        self.year_edit.setValidator(QRegularExpressionValidator(
+                                    QRegularExpression("[1-9][0-9]{3}")))
+        self.button_box.accepted.connect(self.confirm)
+        self.button_box.rejected.connect(self.close)
+        self.tabs.setCurrentIndex(0)
+        self.new_cover = self.song.new_cover
+        self.cover = self.song.cover
+
+        # Fill title and artist based on file name
+        self.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
+
+        self.fill_in_fields_from_song()
+        self.display_cover_image()
+
+
+        self.file_name_edit.setText(os.path.basename(self.song.file_path))
+
+
+        # Change Cover Button
+        self.cover_menu = QMenu(self)
+        self.change_cover_button.setMenu(self.cover_menu)
+        self.cover_menu.addAction(QIcon(), "Browse for cover image",
+                                  self.browse_cover_image, Qt.ConnectionType.AutoConnection)
+
+        # Unset Current Cover Action
+        self.unset_current_cover_action = QAction("", self.cover_menu)
+        self.cover_menu.addAction(self.unset_current_cover_action)
+        self.unset_current_cover_action.triggered.connect(self.unset_current_cover)
+        self.set_unset_cover_action_state()
+
+        # Copy Tags From Another File
+        self.copy_from_another_file_menu = QMenu(self)
+        self.copy_from_another_file_button.setMenu(self.copy_from_another_file_menu)
+
+
+        self.copy_from_another_file_menu.addAction(
+                QIcon(), "Copy from an already opened file", lambda: self.open_copy_tags_dialog(True),
+                Qt.ConnectionType.AutoConnection)
+        self.copy_from_another_file_menu.addAction(
+                QIcon(), "Browse for file", lambda: self.open_copy_tags_dialog(False),
+                Qt.ConnectionType.AutoConnection)
+
+    def open_copy_tags_dialog(self: EditTagsDialog, already_opened: bool) -> None:
+        selected_song = None
+        if already_opened:
+            self.dlg = SongsListDialog([x.file_path for x in self.songs])
+            if self.dlg.exec() != QDialog.DialogCode.Accepted: return
+            selected_idx = self.dlg.get_selected()
+            if selected_idx: selected_song = self.songs[selected_idx]
+        else:
+            selected_path = self.open_file_dialog()
+            if selected_path: selected_song = Song(selected_path)
+        if not selected_song: return
+
+        self.copy_tags_from_song(selected_song)
+
+    def copy_tags_from_song(self: EditTagsDialog, selected_song: Song) -> None:
+        raise NotImplementedError()
+        self.song.title = selected_song.title
+        # self.song.artist = selected_song.title
+
+    def update_cover_display(self: EditTagsDialog) -> None:
+        self.cover_image_label.clear()
+        self.display_cover_image()
+        self.set_unset_cover_action_state()
+
+    def unset_current_cover(self: EditTagsDialog) -> None:
+        match self.which_cover_to_use():
+            case self.CoverImageStates.NONE: return
+            case self.CoverImageStates.SELECTED: self.new_cover = None
+            case self.CoverImageStates.EMBEDDED: self.cover = None
+        self.update_cover_display()
+
+    def open_file_dialog(self: EditTagsDialog) -> str:
+        return QFileDialog.getOpenFileName(
+                self, "Select Cover Image", ".", "*.jpg")[0]
+
+    def browse_cover_image(self: EditTagsDialog) -> None:
+        file_path = self.open_file_dialog()
+        if file_path == "": return
+        with open(file_path, "rb") as f:
+            image_data = f.read()
+        self.new_cover = image_data
+        self.update_cover_display()
+
+    # def clean_out_tags(self: EditTagsDialog) -> None:
+    #     self.song.remove_unknown_tags()
+    #     self.song.remove_comments()
+
+    def confirm(self: EditTagsDialog) -> None:
+        # if self.remove_other_tags_checkbox.isChecked():
+            # print(f"Removing ID3 {rm_str} tag: {'SUCCESS' if status else 'FAIL'}")
+
+        self.song.title = self.title_edit.text()
+        self.song.artist = self.artist_edit.text()
+        self.song.album = self.album_edit.text()
+        self.song.album_artist = self.album_artist_edit.text()
+        self.song.genre = self.genre_edit.text()
+        self.song.file_path = self.file_name_edit.text()
+        self.song.lyrics = self.lyrics_edit.toPlainText()
+
+        year_edit = self.year_edit.text()
+        if year_edit != "": self.song.year = int(year_edit)
+
+        self.song.track_num = (self.track_count_spinbox.value(), self.track_total_spinbox.value())
+        self.song.disc_num = (self.disc_count_spinbox.value(), self.disc_total_spinbox.value())
+
+        self.song.new_cover = self.new_cover
+        if not self.cover and self.song.cover: self.song.remove_images()
+
+        self.close()
+
+    def autofill_title_and_artist(self: EditTagsDialog):
+        res = self.song.get_title_and_artist_by_file_path() # Better error
+        if not res: return
+        self.artist_edit.setText(res[0])
+        self.title_edit.setText(res[1])
+
+    def which_cover_to_use(self: EditTagsDialog) -> EditTagsDialog.CoverImageStates:
+        if self.new_cover: return self.CoverImageStates.SELECTED
+        elif self.cover: return self.CoverImageStates.EMBEDDED
+        return self.CoverImageStates.NONE
+
+    def set_unset_cover_action_state(self: EditTagsDialog) -> None:
+        enabled = True
+        text = ""
+        match self.which_cover_to_use():
+            case self.CoverImageStates.SELECTED:
+                text = "Unset selected cover image"
+            case self.CoverImageStates.EMBEDDED:
+                text = "Delete embedded cover image"
+            case self.CoverImageStates.NONE:
+                text = "Unset cover image"
+                enabled = False
+        self.unset_current_cover_action.setText(text)
+        self.unset_current_cover_action.setEnabled(enabled)
+
+    def display_cover_image(self: EditTagsDialog) -> None:
+        which = self.which_cover_to_use()
+        if which == self.CoverImageStates.NONE:
+            if not self.cover_image_label.pixmap(): return
+            self.cover_image_label.clear()
+            return
+        pixmap = QPixmap()
+        if which == self.CoverImageStates.SELECTED:
+            pixmap.loadFromData(self.new_cover) # type: ignore
+        elif which == self.CoverImageStates.EMBEDDED:
+            pixmap.loadFromData(self.cover) # type: ignore
+
+        scaled_pixmap = pixmap.scaledToWidth(
+                self.cover_image_label.width(), Qt.TransformationMode.SmoothTransformation)
+        self.cover_image_label.setPixmap(scaled_pixmap)
+        self.cover_image_label.adjustSize()
+
+    def fill_in_fields_from_song(self: EditTagsDialog):
+        self.title_edit.setText(self.song.title)
+        self.artist_edit.setText(self.song.artist)
+        self.album_edit.setText(self.song.album)
+        self.album_artist_edit.setText(self.song.album_artist)
+        self.genre_edit.setText(self.song.genre)
+        self.track_count_spinbox.setValue(self.song.track_num.count)
+        self.disc_count_spinbox.setValue(self.song.disc_num.count)
+        year = self.song.year
+        if year: self.year_edit.setText(str(year))
+        self.lyrics_edit.setPlainText(self.song.lyrics)
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    table_window = TableWindow()
+    table_window.show()
+    table_window.new_album_window()
+
+    sys.exit(app.exec())
