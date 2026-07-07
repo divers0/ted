@@ -89,8 +89,6 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.selected_cover = ""
         self.selected_songs = []
 
-        if DEBUG: pass
-
     def clear_cover_button_clicked(self: AlbumCreationDialog) -> None:
         self.selected_cover = ""
         self.selected_cover_filename_label.setText("")
@@ -132,11 +130,9 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.status_bar.setText("")
 
         cover_bytes = None
-        needs_cropping = False
         if self.selected_cover:
             with open(self.selected_cover, "rb") as f:
                 cover_bytes = f.read()
-            needs_cropping = not ImageEditor(cover_bytes).image_is_square()
 
         self.songs = []
         for path in self.selected_songs:
@@ -145,7 +141,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             song.album = self.title_edit.text()
             song.artist = self.artist_edit.text()
             song.year = int(self.year_edit.text())
-            song.crop_cover_to_square = needs_cropping
+            song.update_crop_cover()
             self.songs.append(song)
         self.accept()
 
@@ -249,6 +245,12 @@ class Song(QObject):
         if not self.__audio_file.tag:
             self.__original_file_has_tags = False
             self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4)
+
+    def update_crop_cover(self: Song) -> None:
+        if self.__new_cover:
+            self.__crop_cover_to_square = not ImageEditor(self.__new_cover).image_is_square()
+        elif self.cover:
+            self.__crop_cover_to_square = not ImageEditor(self.cover).image_is_square()
 
     @property
     def crop_cover_to_square(self: Song) -> bool:
@@ -676,60 +678,20 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.setupUi(self)
         self.centralwidget.destroy()
 
-        self.action_new.triggered.connect(self.new_album_window)
+        self.action_new.triggered.connect(self.new_album_dialog)
         self.action_save_all.triggered.connect(self.save_all)
         self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
-        self.action_save_all.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        self.toggle_menu_bar_actions(False)
-
+        self.action_save_all.setEnabled(False)
+        self.action_autofill_ta.setEnabled(False)
+        self.action_open.triggered.connect(self.open)
+        self.setup_table()
         if DEBUG:
             self.action_debug = QAction("Debug", self)
             self.menuFile.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
 
-    def toggle_menu_bar_actions(self: TableWindow, enabled: bool) -> None:
-        self.action_new.setEnabled(enabled)
-        self.action_save_all.setEnabled(enabled)
-        self.action_autofill_ta.setEnabled(enabled)
-
-    def save_all(self: TableWindow) -> None:
-        for i in range(len(self.model.songs)):
-            self.model.songs[i].save()
-
-    def closeEvent(self: TableWindow, a0: QCloseEvent | None) -> None:
-        if not a0: return
-        a0.accept()
-        QApplication.quit()
-
-    def autofill_titles_and_artists(self: TableWindow) -> None:
-        for i in range(len(self.model.songs)):
-            res = self.model.songs[i].get_title_and_artist_by_file_name()
-            if not res: return # TODO: Better error
-            self.model.songs[i].artist = res[0]
-            self.model.songs[i].title = res[1]
-
-    def debug(self: TableWindow) -> None:
-        print(" ---- debug ----")
-        print(" ---- end debug ----")
-
-    def new_album_window(self: TableWindow) -> None:
-        self.album_creation_dialog = AlbumCreationDialog(self)
-        res = self.album_creation_dialog.exec()
-        if res == QDialog.DialogCode.Accepted:
-            self.add_songs(self.album_creation_dialog.songs)
-        else:
-            self.action_new.setEnabled(True)
-
-        # self.album_creation_dialog.show()
-
-    def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
-        if index.model() is self.proxy: index = self.proxy.mapToSource(index)
-        row = index.row()
-        self.dialog = EditTagsDialog(self.model.songs, row, self)
-        self.dialog.exec()
-    
-    def add_songs(self: TableWindow, songs: list[Song]) -> None:
+    def setup_table(self: TableWindow) -> None:
         self.model = SongsTableModel()
 
         self.proxy = QSortFilterProxyModel()
@@ -754,10 +716,59 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         if vertical_header is not None:
             vertical_header.hide()
 
+        self.model.tableChanged.connect(self.view.resizeColumnsToContents)
+
+    def open(self: TableWindow) -> None:
+        paths = QFileDialog.getOpenFileNames(
+            self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
+        if len(paths) == 0: return
+        songs = []
+        for path in paths:
+            song = Song(path)
+            song.update_crop_cover()
+            songs.append(song)
+        self.add_songs(songs)
+
+    def save_all(self: TableWindow) -> None:
+        for i in range(len(self.model.songs)):
+            self.model.songs[i].save()
+
+    def closeEvent(self: TableWindow, a0: QCloseEvent | None) -> None:
+        if not a0: return
+        a0.accept()
+        QApplication.quit()
+
+    def autofill_titles_and_artists(self: TableWindow) -> None:
+        for i in range(len(self.model.songs)):
+            res = self.model.songs[i].get_title_and_artist_by_file_name()
+            if not res: return # TODO: Better error
+            self.model.songs[i].artist = res[0]
+            self.model.songs[i].title = res[1]
+
+    def debug(self: TableWindow) -> None:
+        print(" ---- debug ----")
+        print(" ---- end debug ----")
+
+    def new_album_dialog(self: TableWindow) -> None:
+        self.album_creation_dialog = AlbumCreationDialog(self)
+        res = self.album_creation_dialog.exec()
+        if res == QDialog.DialogCode.Accepted:
+            self.add_songs(self.album_creation_dialog.songs)
+        else:
+            self.action_new.setEnabled(True)
+
+    def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
+        if index.model() is self.proxy: index = self.proxy.mapToSource(index)
+        row = index.row()
+        self.dialog = EditTagsDialog(self.model.songs, row, self)
+        self.dialog.exec()
+    
+    def add_songs(self: TableWindow, songs: list[Song]) -> None:
         self.model.add_songs(songs)
         self.view.resizeColumnsToContents()
-        self.model.tableChanged.connect(self.view.resizeColumnsToContents)
-        self.toggle_menu_bar_actions(True)
+
+        self.action_save_all.setEnabled(True)
+        self.action_autofill_ta.setEnabled(True)
 
 class SongsListDialog(QDialog, Ui_ListDialog):
     def __init__(self: SongsListDialog, items: list[str], parent: QWidget | None = None) -> None:
@@ -792,9 +803,8 @@ class ImageEditor:
     def __init__(self: ImageEditor, data: bytes) -> None:
         self.__data = data
         self.__image = Image.open(BytesIO(data))
-        print('ImageEditor format:', self.__image.format)
-        if self.__image.format != "JPEG":
-            raise ValueError(f"Expected JPEG format, got {self.__image.format}")
+        if self.__image.format not in  ("JPEG", "PNG"):
+            raise ValueError(f"Expected JPEG/PNG format, got {self.__image.format}")
 
     def image_is_square(self: ImageEditor) -> bool:
         return self.__image.width == self.__image.height
@@ -1072,6 +1082,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     table_window = TableWindow()
     table_window.show()
-    table_window.new_album_window()
 
     sys.exit(app.exec())

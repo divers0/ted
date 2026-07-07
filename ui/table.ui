@@ -28,6 +28,7 @@
      <string>File</string>
     </property>
     <addaction name="action_new"/>
+    <addaction name="action_open"/>
     <addaction name="action_save_all"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
@@ -42,7 +43,7 @@
   <widget class="QStatusBar" name="statusbar"/>
   <action name="action_new">
    <property name="text">
-    <string>New</string>
+    <string>New Album</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+N</string>
@@ -55,12 +56,23 @@
   </action>
   <action name="action_save_all">
    <property name="text">
-    <string>Save all...</string>
+    <string>Save All</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+S</string>
    </property>
   </action>
   <action name="action_autofill_ta">
    <property name="text">
     <string>Autofill Title and Artist based on file names</string>
+   </property>
+  </action>
+  <action name="action_open">
+   <property name="text">
+    <string>Open</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
    </property>
   </action>
  </widget>
