@@ -3,8 +3,10 @@ import os
 import sys
 import eyed3
 import eyed3.id3
+from PIL import Image
+from io import BytesIO
 
-from typing import Any, Callable
+from typing import Any
 from enum import Enum
 from PyQt6.QtCore import (
     QAbstractItemModel,
@@ -56,20 +58,19 @@ from ui.EditTagsDialog import Ui_EditTagsDialog
 from ui.ListDialog import Ui_ListDialog
 
 DEBUG = 1
-    
+
 class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
-    def __init__(self: AlbumCreationDialog, populate_table: Callable[[list[Song]], None]) -> None:
-        super().__init__()
+    def __init__(self: AlbumCreationDialog, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setupUi(self)
         self.setFixedSize(self.size())
-        self.populate_table = populate_table 
 
         self.cover_button.clicked.connect(self.cover_browse_clicked)
         self.cover_button.setAutoDefault(True)
 
-        self.clear_image_button.clicked.connect(self.clear_image_button_clicked)
-        self.clear_image_button.setIcon(QIcon("./icons/delete.png")) # TODO
-        self.clear_image_button.setAutoDefault(True)
+        self.clear_cover_button.clicked.connect(self.clear_cover_button_clicked)
+        self.clear_cover_button.setIcon(QIcon("./icons/delete.png")) # TODO
+        self.clear_cover_button.setAutoDefault(True)
 
         self.songs_button.clicked.connect(self.songs_browse_clicked)
         self.songs_button.setAutoDefault(True)
@@ -78,7 +79,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.status_bar_layout.addWidget(self.status_bar)
 
         self.button_box.accepted.connect(self.confirm_button_clicked)
-        self.button_box.rejected.connect(self.close)
+        self.button_box.rejected.connect(self.reject)
         for button in self.button_box.buttons():
             if isinstance(button, QPushButton):
                 button.setAutoDefault(True)
@@ -102,7 +103,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             music_path = "/run/media/diverso/PHILIPS/Music"
             self.set_song_paths([os.path.join(music_path, x) for x in ("Muse - Starlight.mp3", "Muse - Knights of Cydonia.mp3", "Muse - Supermassive Black Hole.mp3")])
 
-    def clear_image_button_clicked(self: AlbumCreationDialog) -> None:
+    def clear_cover_button_clicked(self: AlbumCreationDialog) -> None:
         self.selected_cover = ""
         self.selected_cover_filename_label.setText("")
 
@@ -143,19 +144,22 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.status_bar.setText("")
 
         cover_bytes = None
+        needs_cropping = False
         if self.selected_cover:
             with open(self.selected_cover, "rb") as f:
                 cover_bytes = f.read()
-        songs = []
+            needs_cropping = not ImageEditor(cover_bytes).image_is_square()
+
+        self.songs = []
         for path in self.selected_songs:
             song = Song(path)
             song.new_cover = cover_bytes
             song.album = self.title_edit.text()
             song.artist = self.artist_edit.text()
             song.year = int(self.year_edit.text())
-            songs.append(song)
-        self.populate_table(songs)
-        self.close()
+            song.crop_cover_to_square = needs_cropping
+            self.songs.append(song)
+        self.accept()
 
 class YearLineEditDelegate(QItemDelegate):
     def createEditor(
@@ -249,9 +253,23 @@ class Song(QObject):
         self.__audio_file = eyed3.load(self.__file_path) # TODO: add a check
         self.__remove_other_tags = True
         self.__preserve_file_time = True
+        self.__crop_cover_to_square = False
+        self.__original_file_has_tags = True
+
         if not self.__audio_file: assert(False)
         if not self.__audio_file.tag:
-            self.__audio_file.initTag()
+            self.__original_file_has_tags = False
+            self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4)
+            # self.__audio_file.tag.save()
+            # self.__audio_file = eyed3.load(self.__file_path)
+
+    @property
+    def crop_cover_to_square(self: Song) -> bool:
+        return self.__crop_cover_to_square
+
+    @crop_cover_to_square.setter
+    def crop_cover_to_square(self: Song, value: bool) -> None:
+        self.__crop_cover_to_square = value
 
     @property
     def preserve_file_time(self: Song) -> bool:
@@ -286,7 +304,8 @@ class Song(QObject):
         self.__new_cover = new_cover
 
     def __remove_all_tags(self: Song, preserve_file_time: bool) -> bool:
-        ret = eyed3.id3.Tag.remove(self.file_path, eyed3.id3.ID3_ANY_VERSION,
+        if not self.__original_file_has_tags: return True
+        ret = eyed3.id3.Tag.remove(self.__audio_file.path, eyed3.id3.ID3_ANY_VERSION, # type: ignore
                                     preserve_file_time=preserve_file_time)
         if ret: self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4) # type: ignore
         return ret
@@ -318,7 +337,12 @@ class Song(QObject):
             self.genre = tags["genre"]
             self.track_num = tags["track_num"]
             self.disc_num = tags["disc_num"]
-            self.cover = tags["cover"]
+            if tags["cover"]:
+                self.cover = tags["cover"]
+        if self.__crop_cover_to_square:
+            assert(self.cover)
+            image_editor = ImageEditor(self.cover)
+            self.cover = image_editor.crop_to_center_square()
 
         self.__audio_file.tag.save(preserve_file_time=self.__preserve_file_time) # type: ignore
         return True
@@ -480,41 +504,6 @@ class Song(QObject):
             self._remove_frame_by_fid(eyed3.id3.frames.LYRICS_FID)
             return
         self.__audio_file.tag.lyrics.set(new_lyrics) # type: ignore
-
-    # @property
-    # def composer(self: Song) -> str | None:
-    #     return self.__audio_file.tag.composer # type: ignore
-
-    # @composer.setter
-    # def composer(self: Song, new_composer: str) -> None:
-    #     if new_composer == self.__audio_file.tag.composer: return # type: ignore
-    #     self.__audio_file.tag.composer = new_composer # type: ignore
-
-    # @property
-    # def performer(self: Song) -> str | None:
-    #     return self.__audio_file.tag.original_artist # type: ignore
-
-    # @performer.setter
-    # def performer(self: Song, new_performer: str) -> None:
-    #     if new_performer == self.__audio_file.tag.original_artist: return # type: ignore
-    #     self.__audio_file.tag.original_artist = new_performer # type: ignore
-
-    # @property
-    # def comment(self: Song) -> str | None:
-    #     if not self.__audio_file: return
-    #     comments = self.__audio_file.tag.comments # type: ignore
-    #     if len(comments) == 0: return
-    #     comment = comments[0].text
-    #     for c in comments:
-    #         if c.description == "": comment = c.text
-    #     return comment
-
-    # @comment.setter
-    # def comment(self: Song, new_comment: str) -> None:
-    #     if not self.__audio_file: return
-    #     if new_comment == self.__audio_file.tag.comment: return
-
-    #     self.__audio_file.tag.comment = new_comment
 
     def fix_date(self: Song) -> int:
         self.__audio_file.tag.recording_date = self.__audio_file.tag.getBestDate() # type: ignore
@@ -707,14 +696,20 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         print(" ---- end debug ----")
 
     def new_album_window(self: TableWindow) -> None:
-        self.album_creation_dialog = AlbumCreationDialog(self.add_songs)
-        self.album_creation_dialog.show()
+        self.album_creation_dialog = AlbumCreationDialog(self)
+        res = self.album_creation_dialog.exec()
+        if res == QDialog.DialogCode.Accepted:
+            self.add_songs(self.album_creation_dialog.songs)
+        else:
+            self.action_new.setEnabled(True)
+
+        # self.album_creation_dialog.show()
 
     def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
         if index.model() is self.proxy: index = self.proxy.mapToSource(index)
         row = index.row()
-        self.dialog = EditTagsDialog(self.model.songs, row)
-        self.dialog.show()
+        self.dialog = EditTagsDialog(self.model.songs, row, self)
+        self.dialog.exec()
     
     def add_songs(self: TableWindow, songs: list[Song]) -> None:
         self.model = SongsTableModel()
@@ -747,8 +742,8 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.toggle_menu_bar_actions(True)
 
 class SongsListDialog(QDialog, Ui_ListDialog):
-    def __init__(self: SongsListDialog, items: list[str]) -> None:
-        super().__init__()
+    def __init__(self: SongsListDialog, items: list[str], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setupUi(self)
         self.songs_list.addItems(items)
         self.button_box.accepted.connect(self.accept)
@@ -761,8 +756,8 @@ class SongsListDialog(QDialog, Ui_ListDialog):
         return selected_items[0].row()
 
 class ImageViewer(QWidget):
-    def __init__(self: ImageViewer, image_data: bytes):
-        super().__init__()
+    def __init__(self: ImageViewer, image_data: bytes, parent: QWidget | None = None):
+        super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Image Viewer")
 
         layout = QVBoxLayout()
@@ -773,12 +768,36 @@ class ImageViewer(QWidget):
         label.setPixmap(pixmap)
         self.setLayout(layout)
         self.setFixedSize(pixmap.width(), pixmap.height())
+        # self.setWindowModality(Qt.WindowModality.WindowModal)
+
+class ImageEditor:
+    def __init__(self: ImageEditor, data: bytes) -> None:
+        self.__data = data
+        self.__image = Image.open(BytesIO(data))
+        print('ImageEditor format:', self.__image.format)
+        if self.__image.format != "JPEG":
+            raise ValueError(f"Expected JPEG format, got {self.__image.format}")
+
+    def image_is_square(self: ImageEditor) -> bool:
+        return self.__image.width == self.__image.height
+
+    @property
+    def data(self: ImageEditor) -> bytes:
+        return self.__data
+
+    def crop_to_center_square(self: ImageEditor) -> bytes:
+        width, height = self.__image.size
+        x = (width-height)/2
+        self.__image = self.__image.crop((x, 0, x+height, height))
+        output_bytes = BytesIO()
+        self.__image.save(output_bytes, format="JPEG", quality=95)
+        return output_bytes.getvalue()
 
 class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
 
-    def __init__(self: EditTagsDialog, songs: list[Song], index: int) -> None:
-        super().__init__()
+    def __init__(self: EditTagsDialog, songs: list[Song], index: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setupUi(self)
         self.setFixedSize(self.size())
         self.songs = songs
@@ -797,7 +816,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
 
         self.fill_in_fields_from_song()
-        self.display_cover_image()
+        self.display_cover()
 
 
         self.file_name_edit.setText(os.path.basename(self.song.file_name))
@@ -808,15 +827,15 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.change_cover_button.setMenu(self.cover_menu)
 
         self.cover_menu.addAction(QIcon(), "Show full size",
-                                  self.show_cover_image_full_size, Qt.ConnectionType.AutoConnection)
+                                  self.show_cover_full_size, Qt.ConnectionType.AutoConnection)
 
         self.cover_menu.addSeparator()
 
         self.cover_menu.addAction(QIcon(), "Browse for cover image",
-                                  self.browse_cover_image, Qt.ConnectionType.AutoConnection)
+                                  self.browse_cover, Qt.ConnectionType.AutoConnection)
 
         self.cover_menu.addAction(QIcon(), "Browse for mp3 file to copy the cover from",
-                                  self.copy_cover_image, Qt.ConnectionType.AutoConnection)
+                                  self.copy_cover, Qt.ConnectionType.AutoConnection)
 
         self.cover_menu.addSeparator()
 
@@ -824,7 +843,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.unset_current_cover_action = QAction("", self.cover_menu)
         self.cover_menu.addAction(self.unset_current_cover_action)
         self.unset_current_cover_action.triggered.connect(self.unset_current_cover)
-        self.set_unset_cover_action_state()
+        self.update_cover_related_controls()
 
         # Copy Tags From Another File
         self.copy_from_another_file_menu = QMenu(self)
@@ -840,6 +859,14 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
 
         self.preserve_file_time_checkbox.setChecked(self.song.preserve_file_time)
         self.remove_other_tags_checkbox.setChecked(self.song.remove_other_tags)
+        self.crop_cover_checkbox.setChecked(self.song.crop_cover_to_square)
+
+        self.music_list.hide()
+        # if self.song.crop_cover_to_square:
+        #     self.crop_cover_checkbox.setChecked(True)
+        #     self.crop_cover_checkbox.setEnabled(True)
+        # else:
+        #     self.crop_cover_checkbox.setChecked(False)
 
     @property
     def cover(self: EditTagsDialog) -> bytes | None:
@@ -852,7 +879,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     def open_copy_tags_dialog(self: EditTagsDialog, already_opened: bool) -> None:
         selected_song = None
         if already_opened:
-            self.dlg = SongsListDialog([x.file_name for x in self.songs])
+            self.dlg = SongsListDialog([x.file_name for x in self.songs], self)
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
             selected_idx = self.dlg.get_selected()
             if selected_idx is not None: selected_song = self.songs[selected_idx]
@@ -876,7 +903,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.disc_total_spinbox.setValue(selected_song.disc_num[1])
         self.year_edit.setText(str(selected_song.year))
 
-    def copy_cover_image(self: EditTagsDialog) -> None:
+    def copy_cover(self: EditTagsDialog) -> None:
         selected_path = self.open_file_dialog("*.mp3")
         if not selected_path: return
         selected_song = Song(selected_path)
@@ -885,9 +912,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.update_cover_display()
 
     def update_cover_display(self: EditTagsDialog) -> None:
-        self.cover_image_label.clear()
-        self.display_cover_image()
-        self.set_unset_cover_action_state()
+        self.cover_label.clear()
+        self.display_cover()
+        self.update_cover_related_controls()
 
     def unset_current_cover(self: EditTagsDialog) -> None:
         match self.which_cover_to_use():
@@ -900,7 +927,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         return QFileDialog.getOpenFileName(
                 self, "Select Cover Image", ".", filter)[0]
 
-    def browse_cover_image(self: EditTagsDialog) -> None:
+    def browse_cover(self: EditTagsDialog) -> None:
         file_path = self.open_file_dialog("*.jpg")
         if file_path == "": return
         with open(file_path, "rb") as f:
@@ -913,9 +940,6 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     #     self.song.remove_comments()
 
     def confirm(self: EditTagsDialog) -> None:
-        # if self.remove_other_tags_checkbox.isChecked():
-            # print(f"Removing ID3 {rm_str} tag: {'SUCCESS' if status else 'FAIL'}")
-
         self.song.title = self.title_edit.text()
         self.song.artist = self.artist_edit.text()
         self.song.album = self.album_edit.text()
@@ -935,6 +959,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
 
         self.song.remove_other_tags = self.remove_other_tags_checkbox.isChecked()
         self.song.preserve_file_time = self.preserve_file_time_checkbox.isChecked()
+        self.song.crop_cover_to_square = self.crop_cover_checkbox.isChecked()
 
         self.close()
 
@@ -949,21 +974,38 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         elif self.cover: return self.CoverImageStates.EMBEDDED
         return self.CoverImageStates.NONE
 
-    def set_unset_cover_action_state(self: EditTagsDialog) -> None:
+    def update_cover_related_controls(self: EditTagsDialog) -> None:
         enabled = True
         text = ""
+        image_data = None
         match self.which_cover_to_use():
             case self.CoverImageStates.SELECTED:
                 text = "Unset selected cover image"
+                image_data = self.new_cover
             case self.CoverImageStates.EMBEDDED:
                 text = "Delete embedded cover image"
+                image_data = self.cover
             case self.CoverImageStates.NONE:
                 text = "Unset cover image"
                 enabled = False
         self.unset_current_cover_action.setText(text)
         self.unset_current_cover_action.setEnabled(enabled)
 
-    def show_cover_image_full_size(self: EditTagsDialog) -> None:
+        if not image_data:
+            self.crop_cover_checkbox.setEnabled(False)
+            self.crop_cover_checkbox.setChecked(False)
+            return
+
+        image_editor = ImageEditor(image_data)
+        if image_editor.image_is_square():
+            self.crop_cover_checkbox.setEnabled(False)
+            self.crop_cover_checkbox.setChecked(False)
+        else:
+            self.crop_cover_checkbox.setEnabled(True)
+            self.crop_cover_checkbox.setChecked(True)
+
+
+    def show_cover_full_size(self: EditTagsDialog) -> None:
         which = self.which_cover_to_use()
         image_data = None
         if which == self.CoverImageStates.EMBEDDED:
@@ -971,14 +1013,14 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         elif which == self.CoverImageStates.SELECTED:
             image_data = self.new_cover
         if not image_data: return
-        self.image_viewer = ImageViewer(image_data)
+        self.image_viewer = ImageViewer(image_data, self)
         self.image_viewer.show()
 
-    def display_cover_image(self: EditTagsDialog) -> None:
+    def display_cover(self: EditTagsDialog) -> None:
         which = self.which_cover_to_use()
         if which == self.CoverImageStates.NONE:
-            if not self.cover_image_label.pixmap(): return
-            self.cover_image_label.clear()
+            if not self.cover_label.pixmap(): return
+            self.cover_label.clear()
             return
         pixmap = QPixmap()
         if which == self.CoverImageStates.SELECTED:
@@ -987,9 +1029,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
             pixmap.loadFromData(self.cover) # type: ignore
 
         scaled_pixmap = pixmap.scaledToWidth(
-                self.cover_image_label.width(), Qt.TransformationMode.SmoothTransformation)
-        self.cover_image_label.setPixmap(scaled_pixmap)
-        # self.cover_image_label.adjustSize()
+                self.cover_label.width(), Qt.TransformationMode.SmoothTransformation)
+        self.cover_label.setPixmap(scaled_pixmap)
+        # self.cover_label.adjustSize()
 
     def fill_in_fields_from_song(self: EditTagsDialog):
         self.title_edit.setText(self.song.title)

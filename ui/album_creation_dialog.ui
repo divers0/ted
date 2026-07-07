@@ -89,7 +89,7 @@
       </widget>
      </item>
      <item row="0" column="2" alignment="Qt::AlignmentFlag::AlignLeft">
-      <widget class="QPushButton" name="clear_image_button">
+      <widget class="QPushButton" name="clear_cover_button">
        <property name="text">
         <string/>
        </property>
@@ -146,7 +146,7 @@
   <tabstop>artist_edit</tabstop>
   <tabstop>year_edit</tabstop>
   <tabstop>cover_button</tabstop>
-  <tabstop>clear_image_button</tabstop>
+  <tabstop>clear_cover_button</tabstop>
   <tabstop>songs_button</tabstop>
  </tabstops>
  <resources/>

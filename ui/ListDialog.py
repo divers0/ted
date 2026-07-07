@@ -12,9 +12,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_ListDialog(object):
     def setupUi(self, ListDialog):
         ListDialog.setObjectName("ListDialog")
-        ListDialog.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-        ListDialog.resize(578, 441)
-        ListDialog.setModal(True)
+        ListDialog.resize(580, 440)
         self.verticalLayout = QtWidgets.QVBoxLayout(ListDialog)
         self.verticalLayout.setObjectName("verticalLayout")
         self.songs_list = QtWidgets.QListWidget(parent=ListDialog)

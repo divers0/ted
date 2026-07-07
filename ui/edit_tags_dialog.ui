@@ -48,7 +48,7 @@
         <item>
          <layout class="QHBoxLayout" name="top_layout">
           <item>
-           <widget class="QLabel" name="cover_image_label">
+           <widget class="QLabel" name="cover_label">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -254,7 +254,10 @@
               </widget>
              </item>
              <item row="0" column="1">
-              <widget class="QCheckBox" name="crop_cover_image">
+              <widget class="QCheckBox" name="crop_cover_checkbox">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
                <property name="text">
                 <string>Crop the cover image to square</string>
                </property>
@@ -323,7 +326,7 @@
   <tabstop>album_artist_edit</tabstop>
   <tabstop>genre_edit</tabstop>
   <tabstop>remove_other_tags_checkbox</tabstop>
-  <tabstop>crop_cover_image</tabstop>
+  <tabstop>crop_cover_checkbox</tabstop>
   <tabstop>preserve_file_time_checkbox</tabstop>
   <tabstop>fill_ta_button</tabstop>
   <tabstop>copy_from_another_file_button</tabstop>

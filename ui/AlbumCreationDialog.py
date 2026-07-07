@@ -52,10 +52,10 @@ class Ui_AlbumCreationDialog(object):
         self.cover_button = QtWidgets.QPushButton(parent=AlbumCreationDialog)
         self.cover_button.setObjectName("cover_button")
         self.gridLayout.addWidget(self.cover_button, 0, 1, 1, 1)
-        self.clear_image_button = QtWidgets.QPushButton(parent=AlbumCreationDialog)
-        self.clear_image_button.setText("")
-        self.clear_image_button.setObjectName("clear_image_button")
-        self.gridLayout.addWidget(self.clear_image_button, 0, 2, 1, 1, QtCore.Qt.AlignmentFlag.AlignLeft)
+        self.clear_cover_button = QtWidgets.QPushButton(parent=AlbumCreationDialog)
+        self.clear_cover_button.setText("")
+        self.clear_cover_button.setObjectName("clear_cover_button")
+        self.gridLayout.addWidget(self.clear_cover_button, 0, 2, 1, 1, QtCore.Qt.AlignmentFlag.AlignLeft)
         self.selected_cover_filename_label = QtWidgets.QLabel(parent=AlbumCreationDialog)
         self.selected_cover_filename_label.setText("")
         self.selected_cover_filename_label.setObjectName("selected_cover_filename_label")
@@ -76,7 +76,7 @@ class Ui_AlbumCreationDialog(object):
         self.button_box.setObjectName("button_box")
         self.verticalLayout_3.addWidget(self.button_box)
         self.status_bar_layout = QtWidgets.QVBoxLayout()
-        self.status_bar_layout.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetMinimumSize)
+        self.status_bar_layout.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetDefaultConstraint)
         self.status_bar_layout.setObjectName("status_bar_layout")
         self.verticalLayout_3.addLayout(self.status_bar_layout)
 
@@ -85,8 +85,8 @@ class Ui_AlbumCreationDialog(object):
         AlbumCreationDialog.setTabOrder(self.title_edit, self.artist_edit)
         AlbumCreationDialog.setTabOrder(self.artist_edit, self.year_edit)
         AlbumCreationDialog.setTabOrder(self.year_edit, self.cover_button)
-        AlbumCreationDialog.setTabOrder(self.cover_button, self.clear_image_button)
-        AlbumCreationDialog.setTabOrder(self.clear_image_button, self.songs_button)
+        AlbumCreationDialog.setTabOrder(self.cover_button, self.clear_cover_button)
+        AlbumCreationDialog.setTabOrder(self.clear_cover_button, self.songs_button)
 
     def retranslateUi(self, AlbumCreationDialog):
         _translate = QtCore.QCoreApplication.translate
