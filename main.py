@@ -89,19 +89,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.selected_cover = ""
         self.selected_songs = []
 
-        if DEBUG:
-            self.year_edit.setText("2010")
-            self.title_edit.setText("Diamond Eyes")
-            self.artist_edit.setText("Deftones")
-            self.set_cover_path("/run/media/diverso/PHILIPS/Covers/diamondeyes.jpg")
-            # self.set_song_paths(["/home/diverso/p/id3v2.4/01_Empty.mp3"])
-            # self.set_song_paths(["/home/diverso/p/id3v2.4/The Stranglers - Golden Brown.mp3"])
-
-            # music_path = "/home/diverso/Music"
-            # self.set_song_paths([os.path.join(music_path, x) for x in os.listdir(music_path) if os.path.isfile(os.path.join(music_path, x))])
-
-            music_path = "/run/media/diverso/PHILIPS/Music"
-            self.set_song_paths([os.path.join(music_path, x) for x in ("Muse - Starlight.mp3", "Muse - Knights of Cydonia.mp3", "Muse - Supermassive Black Hole.mp3")])
+        if DEBUG: pass
 
     def clear_cover_button_clicked(self: AlbumCreationDialog) -> None:
         self.selected_cover = ""
@@ -260,8 +248,6 @@ class Song(QObject):
         if not self.__audio_file.tag:
             self.__original_file_has_tags = False
             self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4)
-            # self.__audio_file.tag.save()
-            # self.__audio_file = eyed3.load(self.__file_path)
 
     @property
     def crop_cover_to_square(self: Song) -> bool:
@@ -345,6 +331,22 @@ class Song(QObject):
             self.cover = image_editor.crop_to_center_square()
 
         self.__audio_file.tag.save(preserve_file_time=self.__preserve_file_time) # type: ignore
+        if self.__file_name != os.path.basename(self.__file_path):
+            return self.__rename()
+        return True
+
+    def __rename(self: Song) -> bool:
+        if not self.__file_name.endswith(".mp3"):
+            print(f"Error: {self.__file_name} is not a valid mp3 file name")
+        new_path = os.path.join(os.path.dirname(self.__file_path), self.__file_name)
+        if os.path.exists(new_path):
+            print(f"Error {self.__file_name}: path already exists") # TODO: BETTER ERROR
+            return False
+        try:
+            self.__audio_file.rename(self.__file_name, preserve_file_time=self.__preserve_file_time) # type: ignore
+        except Exception as e:
+            print(f"Error {self.__file_name}: {e}")
+            return False
         return True
 
     def remove_images(self: Song) -> None:
@@ -522,7 +524,7 @@ class Song(QObject):
     @year.setter
     def year(self: Song, new_year: int | None) -> None:
         if new_year == self.year: return
-        self.__audio_file.tag.recording_date = new_year # type: ignore
+        self.__audio_file.tag.recording_date = str(new_year) # type: ignore
         self.propertyChanged.emit("year", new_year)
 
 
@@ -586,7 +588,6 @@ class SongsTableModel(QAbstractTableModel):
         song = self.__songs[index.row()]
         col = self.__columns[index.column()]
         if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole): return
-        # if role != Qt.ItemDataRole.DisplayRole: return
         match col:
             case 'Track #':
                 return song.track_num[0]
@@ -598,8 +599,7 @@ class SongsTableModel(QAbstractTableModel):
                 return song.album
             case 'Year':
                 return song.year
-            # case 'All Tags':
-            case 'File Path':
+            case 'File Name':
                 return song.file_name
 
     def setData(
