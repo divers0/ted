@@ -243,6 +243,7 @@ class Song(QObject):
         self.__preserve_file_time = True
         self.__crop_cover_to_square = False
         self.__original_file_has_tags = True
+        self.__edited = False
 
         if not self.__audio_file: assert(False)
         if not self.__audio_file.tag:
@@ -256,6 +257,7 @@ class Song(QObject):
     @crop_cover_to_square.setter
     def crop_cover_to_square(self: Song, value: bool) -> None:
         self.__crop_cover_to_square = value
+        if not self.__edited: self.__edited = True
 
     @property
     def preserve_file_time(self: Song) -> bool:
@@ -264,6 +266,7 @@ class Song(QObject):
     @preserve_file_time.setter
     def preserve_file_time(self: Song, value: bool) -> None:
         self.__preserve_file_time = value
+        if not self.__edited: self.__edited = True
 
     @property
     def remove_other_tags(self: Song) -> bool:
@@ -272,6 +275,7 @@ class Song(QObject):
     @remove_other_tags.setter
     def remove_other_tags(self: Song, value: bool) -> None:
         self.__remove_other_tags = value
+        if not self.__edited: self.__edited = True
 
     def __repr__(self) -> str:
         return f"Song(track=\"{self.track_num}\" title={self.title.__repr__()} "+ \
@@ -288,6 +292,7 @@ class Song(QObject):
     def new_cover(self: Song, new_cover: bytes | None) -> None:
         if new_cover == self.__new_cover: return
         self.__new_cover = new_cover
+        if not self.__edited: self.__edited = True
 
     def __remove_all_tags(self: Song, preserve_file_time: bool) -> bool:
         if not self.__original_file_has_tags: return True
@@ -311,6 +316,7 @@ class Song(QObject):
         }
 
     def save(self: Song) -> bool:
+        if not self.__edited: return False
         if self.__remove_other_tags:
             tags = self._get_relevant_tags()
             if not self.__remove_all_tags(self.__preserve_file_time): return False
@@ -383,6 +389,7 @@ class Song(QObject):
     @cover.setter
     def cover(self: Song, image_data: bytes) -> None:
         self.__audio_file.tag.images.set(3, image_data, "image/jpeg") # type: ignore
+        if not self.__edited: self.__edited = True
 
     @property
     def file_path(self: Song) -> str:
@@ -398,6 +405,7 @@ class Song(QObject):
 
         self.__file_name = new_file_name
         self.propertyChanged.emit("file_name", new_file_name)
+        if not self.__edited: self.__edited = True
 
     @property
     def title(self: Song) -> str:
@@ -411,6 +419,7 @@ class Song(QObject):
 
         self.__audio_file.tag.title = new_title # type: ignore
         self.propertyChanged.emit("title", new_title)
+        if not self.__edited: self.__edited = True
 
     @property
     def artist(self: Song) -> str:
@@ -424,6 +433,7 @@ class Song(QObject):
 
         self.__audio_file.tag.artist = new_artist # type: ignore
         self.propertyChanged.emit("artist", new_artist)
+        if not self.__edited: self.__edited = True
 
     @property
     def track_num(self: Song) -> tuple[int, int]: # TODO
@@ -440,6 +450,7 @@ class Song(QObject):
 
         self.__audio_file.tag.track_num = new_track_num # type: ignore
         self.propertyChanged.emit("track_num", new_track_num)
+        if not self.__edited: self.__edited = True
 
     @property
     def disc_num(self: Song) -> tuple[int, int]: # TODO
@@ -456,6 +467,7 @@ class Song(QObject):
 
         self.__audio_file.tag.disc_num = new_disc_num # type: ignore
         self.propertyChanged.emit("disc_num", new_disc_num)
+        if not self.__edited: self.__edited = True
 
     @property
     def album(self: Song) -> str:
@@ -469,6 +481,7 @@ class Song(QObject):
 
         self.__audio_file.tag.album = new_album # type: ignore
         self.propertyChanged.emit("album", new_album)
+        if not self.__edited: self.__edited = True
 
     @property
     def album_artist(self: Song) -> str:
@@ -481,6 +494,7 @@ class Song(QObject):
         if new_album_artist == self.__audio_file.tag.album_artist: return # type: ignore
 
         self.__audio_file.tag.album_artist = new_album_artist # type: ignore
+        if not self.__edited: self.__edited = True
 
     @property
     def genre(self: Song) -> str:
@@ -493,6 +507,7 @@ class Song(QObject):
         if new_genre == self.__audio_file.tag.genre: return # type: ignore
 
         self.__audio_file.tag.genre = new_genre # type: ignore
+        if not self.__edited: self.__edited = True
 
     @property
     def lyrics(self: Song) -> str:
@@ -504,8 +519,10 @@ class Song(QObject):
         if new_lyrics == self.lyrics: return
         if new_lyrics == "":
             self._remove_frame_by_fid(eyed3.id3.frames.LYRICS_FID)
+            if not self.__edited: self.__edited = True
             return
         self.__audio_file.tag.lyrics.set(new_lyrics) # type: ignore
+        if not self.__edited: self.__edited = True
 
     def fix_date(self: Song) -> int:
         self.__audio_file.tag.recording_date = self.__audio_file.tag.getBestDate() # type: ignore
@@ -525,6 +542,7 @@ class Song(QObject):
     def year(self: Song, new_year: int | None) -> None:
         if new_year == self.year: return
         self.__audio_file.tag.recording_date = str(new_year) # type: ignore
+        if not self.__edited: self.__edited = True
         self.propertyChanged.emit("year", new_year)
 
 
