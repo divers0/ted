@@ -826,8 +826,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.cover_menu = QMenu(self)
         self.change_cover_button.setMenu(self.cover_menu)
 
-        self.cover_menu.addAction(QIcon(), "Show full size",
-                                  self.show_cover_full_size, Qt.ConnectionType.AutoConnection)
+        self.show_cover_full_size_action = QAction("Show full size", self.cover_menu)
+        self.show_cover_full_size_action.triggered.connect(self.show_cover_full_size)
+        self.cover_menu.addAction(self.show_cover_full_size_action)
 
         self.cover_menu.addSeparator()
 
@@ -992,9 +993,12 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.unset_current_cover_action.setEnabled(enabled)
 
         if not image_data:
+            self.show_cover_full_size_action.setEnabled(False)
             self.crop_cover_checkbox.setEnabled(False)
             self.crop_cover_checkbox.setChecked(False)
             return
+        if not self.show_cover_full_size_action.isEnabled():
+            self.show_cover_full_size_action.setEnabled(True)
 
         image_editor = ImageEditor(image_data)
         if image_editor.image_is_square():
