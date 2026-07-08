@@ -1011,12 +1011,12 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     def open_copy_tags_dialog(self: EditTagsDialog, already_opened: bool) -> None:
         selected_song = None
         if already_opened:
-            other_songs = [x.file_name for x in self.songs]
-            other_songs.remove(self.song.file_name)
-            self.dlg = SongsListDialog(other_songs, False, self)
+            other_songs = [x for x in self.songs]
+            other_songs.remove(self.song)
+            self.dlg = SongsListDialog([x.file_name for x in other_songs], False, self)
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
             selected_idx = self.dlg.get_selected_index()
-            if selected_idx is not None: selected_song = self.songs[selected_idx]
+            if selected_idx is not None: selected_song = other_songs[selected_idx]
         else:
             selected_path = self.open_file_dialog("*.mp3")
             if selected_path: selected_song = Song(selected_path)
