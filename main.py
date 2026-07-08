@@ -709,7 +709,8 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
         self.action_save_all.setEnabled(False)
         self.action_autofill_ta.setEnabled(False)
-        self.action_open.triggered.connect(self.open)
+        self.action_open.triggered.connect(lambda: self.open(False))
+        self.action_open_from_cb.triggered.connect(lambda: self.open(True))
         self.setup_table()
         if DEBUG:
             self.action_debug = QAction("Debug", self)
@@ -764,10 +765,21 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
         self.model.tableChanged.connect(self.view.resizeColumnsToContents)
 
-    def open(self: TableWindow) -> None:
-        paths = QFileDialog.getOpenFileNames(
-            self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
-        if not paths: return
+    def open(self: TableWindow, from_cb: bool) -> None:
+        paths = []
+        if from_cb:
+            cb = QApplication.clipboard()
+            if not cb: return
+            cb_contents = cb.text()
+            if cb_contents == "": return
+            # TODO: this won't work on windows
+            raw_paths = cb_contents.strip().split("\n")
+            paths = [os.path.abspath(path) for path in raw_paths \
+                            if os.path.isfile(path) and path.endswith(".mp3")]
+        else:
+            paths = QFileDialog.getOpenFileNames(
+                self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
+        if not paths: return # TODO: might want to tell the user what happened
         songs = []
         for path in paths:
             song = Song(path)
