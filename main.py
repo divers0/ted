@@ -61,6 +61,7 @@ from PyQt6.QtWidgets import (
 from ui.TableWindow import Ui_TableWindow
 from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
 from ui.EditTagsDialog import Ui_EditTagsDialog
+from ui.SetAllDialog import Ui_SetAllDialog
 
 DEBUG = 1
 
@@ -697,6 +698,39 @@ class SongsTableModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self.__columns)
 
+class SetAllDialog(QDialog, Ui_SetAllDialog):
+    Tags = Enum("Tags", ["TITLE", "ARTIST", "ALBUM", "ALBUM_ARTIST", "YEAR", "GENRE"])
+    def __init__(self: SetAllDialog, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setupUi(self)
+        self.__tags = {
+            "Title": self.Tags.TITLE,
+            "Artist": self.Tags.ARTIST,
+            "Album": self.Tags.ALBUM,
+            "Album Artist": self.Tags.ALBUM_ARTIST,
+            "Year": self.Tags.YEAR,
+            "Genre": self.Tags.GENRE,
+        }
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.tags_combobox.addItems(self.__tags.keys())
+        self.tags_combobox.currentTextChanged.connect(self.__combobox_changed)
+        self.__validator_set = False
+
+    def __combobox_changed(self: SetAllDialog, text: str) -> None:
+        if text == "Year":
+            self.value_edit.setValidator(QRegularExpressionValidator(
+                                        QRegularExpression("[1-9][0-9]{3}")))
+            if not self.value_edit.hasAcceptableInput():
+                self.value_edit.setText("")
+            self.__validator_set = True
+        elif self.__validator_set:
+            self.value_edit.setValidator(None)
+            self.__validator_set = False
+
+    def get_user_input(self: SetAllDialog) -> tuple[SetAllDialog.Tags, str]:
+        return self.__tags[self.tags_combobox.currentText()], self.value_edit.text()
+
 class TableWindow(QMainWindow, Ui_TableWindow):
     def __init__(self: TableWindow) -> None:
         super().__init__()
@@ -711,12 +745,37 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.action_autofill_ta.setEnabled(False)
         self.action_open.triggered.connect(lambda: self.open(False))
         self.action_open_from_cb.triggered.connect(lambda: self.open(True))
+        self.action_set_all.triggered.connect(self.set_all)
         self.setup_table()
         if DEBUG:
             self.action_debug = QAction("Debug", self)
             self.menuFile.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
+
+    def set_all(self: TableWindow) -> None:
+        self.dlg = SetAllDialog()
+        if self.dlg.exec() != QDialog.DialogCode.Accepted: return
+        user_inp = self.dlg.get_user_input()
+        match user_inp[0]:
+            case self.dlg.Tags.TITLE:
+                for i in range(len(self.model.songs)):
+                    self.model.songs[i].title = user_inp[1]
+            case self.dlg.Tags.ARTIST:
+                for i in range(len(self.model.songs)):
+                    self.model.songs[i].artist = user_inp[1]
+            case self.dlg.Tags.ALBUM:
+                for i in range(len(self.model.songs)):
+                    self.model.songs[i].album = user_inp[1]
+            case self.dlg.Tags.ALBUM_ARTIST:
+                for i in range(len(self.model.songs)):
+                    self.model.songs[i].album_artist = user_inp[1]
+            case self.dlg.Tags.YEAR:
+                for i in range(len(self.model.songs)):
+                    self.model.songs[i].year = int(user_inp[1])
+            case self.dlg.Tags.GENRE:
+                for i in range(len(self.model.songs)):
+                    self.model.songs[i].genre = user_inp[1]
 
 
     def keyPressEvent(self, a0: QKeyEvent | None) -> None:

@@ -38,6 +38,7 @@
      <string>Edit</string>
     </property>
     <addaction name="action_autofill_ta"/>
+    <addaction name="action_set_all"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -83,6 +84,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+O</string>
+   </property>
+  </action>
+  <action name="action_set_all">
+   <property name="text">
+    <string>Set All...</string>
    </property>
   </action>
  </widget>
