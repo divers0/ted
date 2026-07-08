@@ -22,6 +22,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QCloseEvent,
     QAction,
+    QContextMenuEvent,
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
@@ -78,7 +79,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.clear_cover_button.setIcon(QIcon("./icons/delete.png")) # TODO
         self.clear_cover_button.setAutoDefault(True)
 
-        if self.__table_songs == []:
+        if not self.__table_songs:
             self.songs_button.clicked.connect(
                     lambda: self.songs_browse_clicked(False))
             self.songs_button.setAutoDefault(True)
@@ -147,7 +148,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             self.dlg = SongsListDialog([x.file_name for x in self.__table_songs], True, self)
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
             selected_idxs = self.dlg.get_selected_indexes()
-            if len(selected_idxs) != 0:
+            if selected_idxs:
                 self.songs = [self.__table_songs[i] for i in selected_idxs]
         else:
             self._new_songs = True
@@ -169,7 +170,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             self.status_bar.setText("Enter a valid album release year "+
                                     "(a number between 1000 and 9999)")
             return
-        if len(self.songs) == 0:
+        if not self.songs:
             self.status_bar.setText("Select songs for the album")
             return
         self.status_bar.setText("")
@@ -228,18 +229,6 @@ class EditTagsButtonDelegate(QStyledItemDelegate):
         return True
 
 class TrackSpinBoxDelegate(QStyledItemDelegate):
-    # def paint(self, painter: QPainter | None, option: QStyleOptionViewItem, index: QModelIndex) -> None:
-    #     opt = QStyleOptionSpinBox()
-    #     opt.rect = option.rect
-    #     opt.state = option.state
-    #     # opt.frame = True
-    #     opt.stepEnabled = QAbstractSpinBox.StepEnabledFlag.StepUpEnabled | \
-    #                         QAbstractSpinBox.StepEnabledFlag.StepDownEnabled
-
-    #     style = QApplication.style()
-    #     if not style: return
-    #     style.drawComplexControl(QStyle.ComplexControl.CC_SpinBox, opt, painter)
-
     def createEditor(
         self: TrackSpinBoxDelegate,
         parent: QWidget | None,
@@ -250,22 +239,6 @@ class TrackSpinBoxDelegate(QStyledItemDelegate):
         editor.setMinimum(0)
         editor.setMaximum(100)
         return editor
-
-    # def setEditorData(self, editor: QWidget | None, index: QModelIndex) -> None:
-    #     model = index.model()
-    #     if not model: return
-    #     value = model.data(index, Qt.ItemDataRole.EditRole)
-    #     if not isinstance(editor, QSpinBox): return
-    #     editor.setValue(value)
-    # def setModelData(self, editor: QWidget | None, model: QAbstractItemModel | None, index: QModelIndex) -> None:
-    #     if not isinstance(editor, QSpinBox): return
-    #     editor.interpretText()
-    #     value = editor.value()
-    #     if not model: return
-    #     model.setData(index, value, Qt.ItemDataRole.EditRole)
-    # def updateEditorGeometry(self, editor: QWidget | None, option: QStyleOptionViewItem, index: QModelIndex) -> None:
-    #     if not editor: return
-    #     editor.setGeometry(option.rect)
 
 class Song(QObject):
     #                           proerty_name, new_value
@@ -617,6 +590,12 @@ class SongsTableModel(QAbstractTableModel):
     def songs(self: SongsTableModel) -> list[Song]:
         return self.__songs
 
+    def remove_rows(self: SongsTableModel, rows: list[int]) -> None:
+        rows = sorted(rows)
+        self.beginRemoveRows(QModelIndex(), rows[0], rows[-1])
+        self.__songs = [self.__songs[i] for i in range(len(self.__songs)) if i not in rows]
+        self.endRemoveRows()
+
     def add_songs(self: SongsTableModel, songs: list[Song]) -> None:
         songs_n = len(self.__songs)
         self.beginInsertRows(QModelIndex(), songs_n, songs_n+len(songs)-1)
@@ -677,7 +656,6 @@ class SongsTableModel(QAbstractTableModel):
         col = self.__columns[index.column()]
         match col:
             case 'Track #':
-                if not value.isdigit(): return False
                 song.track_num = (int(value), song.track_num[1])
             case 'Title':
                 song.title = value
@@ -698,9 +676,11 @@ class SongsTableModel(QAbstractTableModel):
 
     def flags(self:SongsTableModel, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid(): return Qt.ItemFlag.NoItemFlags
-        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        if index.column() == self.__columns.index("All Tags"): return flags
-        return flags | Qt.ItemFlag.ItemIsEditable
+        if index.column() == self.__columns.index("All Tags"):
+            return Qt.ItemFlag.ItemIsEnabled
+        return Qt.ItemFlag.ItemIsEnabled | \
+                Qt.ItemFlag.ItemIsSelectable | \
+                Qt.ItemFlag.ItemIsEditable
 
     def headerData(
         self,
@@ -737,13 +717,33 @@ class TableWindow(QMainWindow, Ui_TableWindow):
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
 
+
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+        if not a0: return
+        key = a0.key()
+        if key != Qt.Key.Key_Delete:
+            return super().keyPressEvent(a0)
+        selected_indexes = self.view.selectedIndexes()
+        if not selected_indexes: return
+
+        if selected_indexes[0].model() is self.proxy:
+            selected_indexes = [self.proxy.mapToSource(index) for index in selected_indexes]
+        self.model.remove_rows([index.row() for index in selected_indexes])
+
+    def remove_rows(self: TableWindow, indexes: list[QModelIndex]) -> None:
+        assert indexes
+        if indexes[0].model() is self.proxy:
+            indexes = [self.proxy.mapToSource(index) for index in indexes]
+        self.model.remove_rows([index.row() for index in indexes])
+
     def setup_table(self: TableWindow) -> None:
         self.model = SongsTableModel()
 
         self.proxy = QSortFilterProxyModel()
         self.proxy.setSourceModel(self.model)
 
-        self.view = QTableView()
+        self.view = TableViewWithContextMenu()
+        self.view.removeRows.connect(lambda row: self.remove_rows(row))
         self.view.setModel(self.proxy)
         self.view.setSortingEnabled(True)
         self.setCentralWidget(self.view)
@@ -767,7 +767,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
     def open(self: TableWindow) -> None:
         paths = QFileDialog.getOpenFileNames(
             self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
-        if len(paths) == 0: return
+        if not paths: return
         songs = []
         for path in paths:
             song = Song(path)
@@ -807,10 +807,9 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
     def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
         if index.model() is self.proxy: index = self.proxy.mapToSource(index)
-        row = index.row()
-        self.dialog = EditTagsDialog(self.model.songs, row, self)
+        self.dialog = EditTagsDialog(self.model.songs, index.row(), self)
         self.dialog.exec()
-    
+
     def add_songs(self: TableWindow, songs: list[Song]) -> None:
         self.model.add_songs(songs)
         self.view.resizeColumnsToContents()
@@ -818,6 +817,23 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.action_save_all.setEnabled(True)
         self.action_autofill_ta.setEnabled(True)
         self.__songs_added = True
+
+class TableViewWithContextMenu(QTableView):
+    removeRows = pyqtSignal(object)
+    def contextMenuEvent(self, a0: QContextMenuEvent | None) -> None:
+        if not a0: return
+        selected_indexes = self.selectedIndexes()
+        context_menu = QMenu(self)
+        action_remove = QAction(context_menu)
+
+        text = "Remove this row"
+        if len(selected_indexes) > 1:
+            text = "Remove rows"
+        action_remove.triggered.connect(lambda: self.removeRows.emit(selected_indexes))
+        action_remove.setText(text)
+
+        context_menu.addAction(action_remove)
+        context_menu.exec(a0.globalPos())
 
 class CheckableListWidget(QListWidget):
     def keyPressEvent(self, e: QKeyEvent | None) -> None:
@@ -871,7 +887,7 @@ class SongsListDialog(QDialog):
     def get_selected_index(self: SongsListDialog) -> int | None:
         assert not self.allow_multiple
         selected_items = self.songs_list.selectedIndexes()
-        if len(selected_items) == 0: return
+        if not selected_items: return
         return selected_items[0].row()
 
     def get_selected_indexes(self: SongsListDialog) -> list[int]:
@@ -883,9 +899,6 @@ class SongsListDialog(QDialog):
             if item.checkState() == Qt.CheckState.Checked:
                 checked.append(i)
         return checked
-        # selected_items = self.songs_list.selectedIndexes()
-        # if len(selected_items) == 0: return
-        # return [x.row() for x in selected_items]
 
 class ImageViewer(QWidget):
     def __init__(self: ImageViewer, image_data: bytes, parent: QWidget | None = None):
@@ -1181,7 +1194,6 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         year = self.song.year
         if year: self.year_edit.setText(str(year))
         self.lyrics_edit.setPlainText(self.song.lyrics)
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
