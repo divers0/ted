@@ -2,6 +2,7 @@ debug.py
 old/
 TODO.md
 stubs/
+ui/*.py
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
