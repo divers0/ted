@@ -18,6 +18,7 @@ from PyQt6.QtCore import (
     pyqtSignal,
     QAbstractTableModel,
     QSortFilterProxyModel,
+    qInstallMessageHandler,
 )
 from PyQt6.QtGui import (
     QCloseEvent,
@@ -459,7 +460,7 @@ class Song(QObject):
         if not self.__edited: self.__edited = True
 
     @property
-    def track_num(self: Song) -> tuple[int, int]: # TODO
+    def track_num(self: Song) -> tuple[int, int]:
         track_num = self.__audio_file.tag.track_num # type: ignore
         if not track_num: return (0, 0)
         count = total = 0
@@ -476,7 +477,7 @@ class Song(QObject):
         if not self.__edited: self.__edited = True
 
     @property
-    def disc_num(self: Song) -> tuple[int, int]: # TODO
+    def disc_num(self: Song) -> tuple[int, int]:
         disc_num = self.__audio_file.tag.disc_num # type: ignore
         if not disc_num: return (0, 0)
         count = total = 0
@@ -570,7 +571,8 @@ class Song(QObject):
 
 
 class SongsTableModel(QAbstractTableModel):
-    tableChanged = pyqtSignal()
+    #                         empty_table
+    tableChanged = pyqtSignal(bool)
 
     def __init__(self: SongsTableModel) -> None:
         super().__init__()
@@ -598,6 +600,7 @@ class SongsTableModel(QAbstractTableModel):
         self.beginRemoveRows(QModelIndex(), rows[0], rows[-1])
         self.__songs = [self.__songs[i] for i in range(len(self.__songs)) if i not in rows]
         self.endRemoveRows()
+        if not self.__songs: self.tableChanged.emit(True)
 
     def add_songs(self: SongsTableModel, songs: list[Song]) -> None:
         songs_n = len(self.__songs)
@@ -628,7 +631,7 @@ class SongsTableModel(QAbstractTableModel):
         # they're the same because we're only trying to specify one cell
         top_left = bottom_right = self.index(row, col)
         self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole])
-        self.tableChanged.emit() # for resizing the columns on update
+        self.tableChanged.emit(False) # for resizing the columns on update
 
     def data(self: SongsTableModel, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid(): return
@@ -673,17 +676,16 @@ class SongsTableModel(QAbstractTableModel):
                 song.file_name = value
             case _:
                 return False
-        self.tableChanged.emit() # for resizing the columns on update
+        self.tableChanged.emit(False) # for resizing the columns on update
         return True
 
 
     def flags(self:SongsTableModel, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid(): return Qt.ItemFlag.NoItemFlags
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
         if index.column() == self.__columns.index("All Tags"):
-            return Qt.ItemFlag.ItemIsEnabled
-        return Qt.ItemFlag.ItemIsEnabled | \
-                Qt.ItemFlag.ItemIsSelectable | \
-                Qt.ItemFlag.ItemIsEditable
+            return flags
+        return flags | Qt.ItemFlag.ItemIsEditable
 
     def headerData(
         self,
@@ -747,6 +749,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
         self.action_save_all.setEnabled(False)
         self.action_autofill_ta.setEnabled(False)
+        self.action_set_all.setEnabled(False)
         self.action_open.triggered.connect(lambda: self.open(False))
         self.action_open_from_cb.triggered.connect(lambda: self.open(True))
         self.action_set_all.triggered.connect(self.set_all)
@@ -778,9 +781,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
     def dropEvent(self: TableWindow, a0: QDropEvent | None) -> None:
         if not a0: return
         songs = []
-        already_added_file_paths = [x.file_path for x in self.model.songs]
         for path in self.__accepted_drop_paths:
-            if path in already_added_file_paths: continue
             song = Song(path)
             song.update_crop_cover()
             songs.append(song)
@@ -794,10 +795,8 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         if not mime_data.hasUrls(): return
         all_paths = [url.toLocalFile() for url in mime_data.urls()]
         mp3_paths = [path for path in all_paths if path.lower().endswith(".mp3") and os.path.isfile(path)]
-        already_added_file_paths = [x.file_path for x in self.model.songs]
         songs = []
         for path in mp3_paths:
-            if path in already_added_file_paths: continue
             song = Song(path)
             song.update_crop_cover()
             songs.append(song)
@@ -827,15 +826,21 @@ class TableWindow(QMainWindow, Ui_TableWindow):
                 for i in range(len(self.model.songs)):
                     self.model.songs[i].genre = user_inp[1]
 
-
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+    def keyPressEvent(self: TableWindow, a0: QKeyEvent | None) -> None:
         if not a0: return
         key = a0.key()
-        if key != Qt.Key.Key_Delete:
+        if key not in (Qt.Key.Key_Delete, Qt.Key.Key_Return, Qt.Key.Key_Enter):
             return super().keyPressEvent(a0)
         selected_indexes = self.view.selectedIndexes()
         if not selected_indexes: return
 
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if len(selected_indexes) != 1: return
+            index = selected_indexes[0]
+            if index.column() == self.model.columns.index("All Tags"):
+                return self.all_tags_button_clicked(index)
+            return self.view.edit(index)
+        # key has to be Key_Delete
         if selected_indexes[0].model() is self.proxy:
             selected_indexes = [self.proxy.mapToSource(index) for index in selected_indexes]
         self.model.remove_rows([index.row() for index in selected_indexes])
@@ -879,7 +884,14 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         if vertical_header is not None:
             vertical_header.hide()
 
-        self.model.tableChanged.connect(self.view.resizeColumnsToContents)
+        self.model.tableChanged.connect(lambda empty_table: self.update_table(empty_table))
+
+    def update_table(self: TableWindow, empty_table: bool):
+        if empty_table:
+            self.action_save_all.setEnabled(False)
+            self.action_autofill_ta.setEnabled(False)
+            self.action_set_all.setEnabled(False)
+        self.view.resizeColumnsToContents()
 
     def open(self: TableWindow, from_cb: bool) -> None:
         paths = []
@@ -904,8 +916,17 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.add_songs(songs)
 
     def save_all(self: TableWindow) -> None:
+        failed = []
         for i in range(len(self.model.songs)):
-            self.model.songs[i].save()
+            this_new_path = self.model.songs[i].updated_file_path()
+            self.status_bar.showMessage(f"Saving \"{this_new_path}\"")
+            if not self.model.songs[i].save(): failed.append(this_new_path)
+        message = "Finished Saving"
+        time = 5000
+        if failed:
+            message += " (could not save: \""+", ".join(failed)+"\")"
+            time *= 2
+        self.status_bar.showMessage(message, time)
 
     def closeEvent(self: TableWindow, a0: QCloseEvent | None) -> None:
         if not a0: return
@@ -939,11 +960,15 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.dialog.exec()
 
     def add_songs(self: TableWindow, songs: list[Song]) -> None:
+        # checking if they've already been added
+        already_added_paths = [x.file_path for x in self.model.songs]
+        songs = [x for x in songs if x.file_path not in already_added_paths]
         self.model.add_songs(songs)
         self.view.resizeColumnsToContents()
 
         self.action_save_all.setEnabled(True)
         self.action_autofill_ta.setEnabled(True)
+        self.action_set_all.setEnabled(True)
         self.__songs_added = True
 
 class TableViewWithContextMenu(QTableView):
@@ -1290,7 +1315,6 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
             self.crop_cover_checkbox.setEnabled(True)
             self.crop_cover_checkbox.setChecked(True)
 
-
     def show_cover_full_size(self: EditTagsDialog) -> None:
         which = self.which_cover_to_use()
         image_data = None
@@ -1332,6 +1356,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         self.lyrics_edit.setPlainText(self.song.lyrics)
 
 if __name__ == "__main__":
+    if not DEBUG:
+        def custom_message_handler(_, __, ___): return
+        qInstallMessageHandler(custom_message_handler)
     app = QApplication(sys.argv)
     table_window = TableWindow()
     table_window.show()
