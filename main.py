@@ -766,7 +766,8 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
         self.__accepted_drop_paths: list[str] = []
         for path in all_paths:
-            if not path.lower().endswith(".mp3"): continue
+            if not path.lower().endswith(".mp3") or not os.path.isfile(path):
+                continue
             self.__accepted_drop_paths.append(path)
 
         if self.__accepted_drop_paths:
@@ -783,7 +784,24 @@ class TableWindow(QMainWindow, Ui_TableWindow):
             song = Song(path)
             song.update_crop_cover()
             songs.append(song)
-        self.add_songs(songs)
+        if songs: self.add_songs(songs)
+
+    def paste(self: TableWindow) -> None:
+        cb = QApplication.clipboard()
+        if not cb: return
+        mime_data = cb.mimeData()
+        if not mime_data: return
+        if not mime_data.hasUrls(): return
+        all_paths = [url.toLocalFile() for url in mime_data.urls()]
+        mp3_paths = [path for path in all_paths if path.lower().endswith(".mp3") and os.path.isfile(path)]
+        already_added_file_paths = [x.file_path for x in self.model.songs]
+        songs = []
+        for path in mp3_paths:
+            if path in already_added_file_paths: continue
+            song = Song(path)
+            song.update_crop_cover()
+            songs.append(song)
+        if songs: self.add_songs(songs)
 
     def set_all(self: TableWindow) -> None:
         self.dlg = SetAllDialog()
@@ -834,8 +852,15 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.proxy = QSortFilterProxyModel()
         self.proxy.setSourceModel(self.model)
 
+        self.action_paste = QAction("Paste", self)
+        self.action_paste.setPriority(QAction.Priority.LowPriority)
+        self.action_paste.setShortcut(QKeySequence.StandardKey.Paste)
+        self.action_paste.triggered.connect(self.paste)
+        self.addAction(self.action_paste)
+
         self.view = TableViewWithContextMenu()
         self.view.removeRows.connect(lambda row: self.remove_rows(row))
+
         self.view.setModel(self.proxy)
         self.view.setSortingEnabled(True)
         self.setCentralWidget(self.view)
@@ -923,19 +948,27 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
 class TableViewWithContextMenu(QTableView):
     removeRows = pyqtSignal(object)
-    def contextMenuEvent(self, a0: QContextMenuEvent | None) -> None:
+    def contextMenuEvent(self: TableViewWithContextMenu, a0: QContextMenuEvent | None) -> None:
         if not a0: return
-        selected_indexes = self.selectedIndexes()
+        parent = self.parent()
+        assert parent and isinstance(parent, TableWindow)
+
         context_menu = QMenu(self)
-        action_remove = QAction(context_menu)
 
-        text = "Remove this row"
-        if len(selected_indexes) > 1:
-            text = "Remove selected rows"
-        action_remove.triggered.connect(lambda: self.removeRows.emit(selected_indexes))
-        action_remove.setText(text)
+        # mouse is not on any rows
+        if self.rowAt(a0.pos().y()) == -1:
+            context_menu.addAction(parent.action_paste)
+        else:
+            selected_indexes = self.selectedIndexes()
+            action_remove = QAction(context_menu)
 
-        context_menu.addAction(action_remove)
+            text = "Remove this row"
+            if len(selected_indexes) > 1:
+                text = "Remove selected rows"
+            action_remove.triggered.connect(lambda: self.removeRows.emit(selected_indexes))
+            action_remove.setText(text)
+
+            context_menu.addAction(action_remove)
         context_menu.exec(a0.globalPos())
 
 class CheckableListWidget(QListWidget):
