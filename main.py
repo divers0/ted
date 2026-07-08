@@ -22,6 +22,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QCloseEvent,
     QAction,
+    QKeyEvent,
     QKeySequence,
     QMouseEvent,
     QPainter,
@@ -32,6 +33,9 @@ from PyQt6.QtGui import (
 
 from PyQt6.QtWidgets import (
     QApplication,
+    QDialogButtonBox,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QDialog,
     QLabel,
@@ -48,6 +52,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QStyleOptionViewItem,
     QTableView,
+    QAbstractItemView,
     # uic
 )
 
@@ -55,15 +60,16 @@ from PyQt6.QtWidgets import (
 from ui.TableWindow import Ui_TableWindow
 from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
 from ui.EditTagsDialog import Ui_EditTagsDialog
-from ui.ListDialog import Ui_ListDialog
 
 DEBUG = 1
 
 class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
-    def __init__(self: AlbumCreationDialog, parent: QWidget | None = None) -> None:
+    def __init__(self: AlbumCreationDialog, table_songs: list[Song], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setupUi(self)
         self.setFixedSize(self.size())
+
+        self.__table_songs = table_songs
 
         self.cover_button.clicked.connect(self.cover_browse_clicked)
         self.cover_button.setAutoDefault(True)
@@ -72,8 +78,12 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.clear_cover_button.setIcon(QIcon("./icons/delete.png")) # TODO
         self.clear_cover_button.setAutoDefault(True)
 
-        self.songs_button.clicked.connect(self.songs_browse_clicked)
-        self.songs_button.setAutoDefault(True)
+        if self.__table_songs == []:
+            self.songs_button.clicked.connect(
+                    lambda: self.songs_browse_clicked(False))
+            self.songs_button.setAutoDefault(True)
+        else:
+            self.add_song_browse_button_menu()
 
         self.status_bar = QLabel()
         self.status_bar_layout.addWidget(self.status_bar)
@@ -87,7 +97,21 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.year_edit.setValidator(QRegularExpressionValidator(
                                     QRegularExpression("[1-9][0-9]{3}")))
         self.selected_cover = ""
-        self.selected_songs = []
+        self.__songs: list[Song] = []
+
+    def add_song_browse_button_menu(self: AlbumCreationDialog) -> None:
+        self.songs_menu = QMenu(self)
+        self.songs_button.setMenu(self.songs_menu)
+        select_already_opened_songs_action = \
+                        QAction("Select already opened songs", self.songs_menu)
+        select_already_opened_songs_action.triggered.connect(
+                                        lambda: self.songs_browse_clicked(True))
+        self.songs_menu.addAction(select_already_opened_songs_action)
+        self.songs_menu.addAction(
+                QIcon(), "Browse for files",
+                lambda: self.songs_browse_clicked(False),
+                Qt.ConnectionType.AutoConnection
+        )
 
     def clear_cover_button_clicked(self: AlbumCreationDialog) -> None:
         self.selected_cover = ""
@@ -97,18 +121,39 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
         self.selected_cover = path
         self.selected_cover_filename_label.setText(os.path.basename(path))
 
-    def set_song_paths(self: AlbumCreationDialog, song_paths: list[str]) -> None:
-        self.selected_songs = song_paths
+    @property
+    def songs(self: AlbumCreationDialog) -> list[Song]:
+        return self.__songs
+
+    @songs.setter
+    def songs(self: AlbumCreationDialog, songs: list[Song]) -> None:
+        self.__songs = songs
         self.selected_songs_filenames_label.setText(
-            ", ".join([os.path.basename(x) for x in song_paths]))
+            ", ".join([os.path.basename(x.updated_file_path()) for x in songs]))
+
+    def get_new_songs(self: AlbumCreationDialog) -> list[Song]:
+        assert hasattr(self, "_new_songs"), \
+                "get_new_songs() was called before songs_browse_clicked()"
+        if not self._new_songs: return []
+        return self.songs
 
     def cover_browse_clicked(self: AlbumCreationDialog) -> None:
         self.set_cover_path(QFileDialog.getOpenFileName(
                 self, "Select Cover Image", ".", "*.jpg")[0])
 
-    def songs_browse_clicked(self: AlbumCreationDialog) -> None:
-        self.set_song_paths(QFileDialog.getOpenFileNames(
-                self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0])
+    def songs_browse_clicked(self: AlbumCreationDialog, already_opened: bool) -> None:
+        if already_opened:
+            self._new_songs = False
+            self.dlg = SongsListDialog([x.file_name for x in self.__table_songs], True, self)
+            if self.dlg.exec() != QDialog.DialogCode.Accepted: return
+            selected_idxs = self.dlg.get_selected_indexes()
+            if len(selected_idxs) != 0:
+                self.songs = [self.__table_songs[i] for i in selected_idxs]
+        else:
+            self._new_songs = True
+            self.songs = [Song(path) for path in QFileDialog.getOpenFileNames(
+                          self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]]
+
 
     def confirm_button_clicked(self: AlbumCreationDialog) -> None:
         if self.title_edit.displayText() == "":
@@ -124,7 +169,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             self.status_bar.setText("Enter a valid album release year "+
                                     "(a number between 1000 and 9999)")
             return
-        if len(self.selected_songs) == 0:
+        if len(self.songs) == 0:
             self.status_bar.setText("Select songs for the album")
             return
         self.status_bar.setText("")
@@ -134,15 +179,12 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             with open(self.selected_cover, "rb") as f:
                 cover_bytes = f.read()
 
-        self.songs = []
-        for path in self.selected_songs:
-            song = Song(path)
+        for song in self.songs:
             song.new_cover = cover_bytes
             song.album = self.title_edit.text()
             song.artist = self.artist_edit.text()
             song.year = int(self.year_edit.text())
             song.update_crop_cover()
-            self.songs.append(song)
         self.accept()
 
 class YearLineEditDelegate(QItemDelegate):
@@ -179,7 +221,7 @@ class EditTagsButtonDelegate(QStyledItemDelegate):
         index: QModelIndex) -> bool:
         if not event: return False
         if event.type() != QEvent.Type.MouseButtonRelease: return False
-        assert(isinstance(event, QMouseEvent))
+        assert isinstance(event, QMouseEvent)
         if not option.rect.contains(event.position().toPoint()): return False
 
         self.clicked.emit(index)
@@ -241,10 +283,13 @@ class Song(QObject):
         self.__original_file_has_tags = True
         self.__edited = False
 
-        if not self.__audio_file: assert(False)
+        assert self.__audio_file
         if not self.__audio_file.tag:
             self.__original_file_has_tags = False
             self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4)
+
+    def updated_file_path(self: Song) -> str:
+        return os.path.join(os.path.dirname(self.__file_path), self.__file_name)
 
     def update_crop_cover(self: Song) -> None:
         if self.__new_cover:
@@ -334,7 +379,7 @@ class Song(QObject):
             if tags["cover"]:
                 self.cover = tags["cover"]
         if self.__crop_cover_to_square:
-            assert(self.cover)
+            assert self.cover
             image_editor = ImageEditor(self.cover)
             self.cover = image_editor.crop_to_center_square()
 
@@ -346,7 +391,7 @@ class Song(QObject):
     def __rename(self: Song) -> bool:
         if not self.__file_name.endswith(".mp3"):
             print(f"Error: {self.__file_name} is not a valid mp3 file name")
-        new_path = os.path.join(os.path.dirname(self.__file_path), self.__file_name)
+        new_path = self.updated_file_path()
         if os.path.exists(new_path):
             print(f"Error {self.__file_name}: path already exists") # TODO: BETTER ERROR
             return False
@@ -677,6 +722,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         super().__init__()
         self.setupUi(self)
         self.centralwidget.destroy()
+        self.__songs_added = False
 
         self.action_new.triggered.connect(self.new_album_dialog)
         self.action_save_all.triggered.connect(self.save_all)
@@ -750,10 +796,12 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         print(" ---- end debug ----")
 
     def new_album_dialog(self: TableWindow) -> None:
-        self.album_creation_dialog = AlbumCreationDialog(self)
+        songs = []
+        if self.__songs_added: songs = self.model.songs
+        self.album_creation_dialog = AlbumCreationDialog(songs, self)
         res = self.album_creation_dialog.exec()
         if res == QDialog.DialogCode.Accepted:
-            self.add_songs(self.album_creation_dialog.songs)
+            self.add_songs(self.album_creation_dialog.get_new_songs())
         else:
             self.action_new.setEnabled(True)
 
@@ -769,20 +817,75 @@ class TableWindow(QMainWindow, Ui_TableWindow):
 
         self.action_save_all.setEnabled(True)
         self.action_autofill_ta.setEnabled(True)
+        self.__songs_added = True
 
-class SongsListDialog(QDialog, Ui_ListDialog):
-    def __init__(self: SongsListDialog, items: list[str], parent: QWidget | None = None) -> None:
+class CheckableListWidget(QListWidget):
+    def keyPressEvent(self, e: QKeyEvent | None) -> None:
+        if not e: return
+        key = e.key()
+        if key not in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            return super().keyPressEvent(e)
+        checked_states = [item.checkState() == Qt.CheckState.Checked for item in self.selectedItems()]
+        if all(checked_states):
+            for item in self.selectedItems():
+                item.setCheckState(Qt.CheckState.Unchecked)
+        elif not any(checked_states):
+            for item in self.selectedItems():
+                item.setCheckState(Qt.CheckState.Checked)
+        else:
+            for item in self.selectedItems():
+                if item.checkState() == Qt.CheckState.Checked: continue
+                item.setCheckState(Qt.CheckState.Checked)
+
+class SongsListDialog(QDialog):
+    def __init__(self: SongsListDialog, items: list[str], allow_multiple: bool, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setupUi(self)
-        self.songs_list.addItems(items)
+        self.setFixedSize(580, 440)
+        self.allow_multiple = allow_multiple
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        self.songs_list = CheckableListWidget()
+        self.songs_list.itemDoubleClicked.connect(self.accept)
+        self.button_box = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Ok |
+                QDialogButtonBox.StandardButton.Cancel
+        )
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        self.songs_list.itemDoubleClicked.connect(self.accept)
 
-    def get_selected(self: SongsListDialog) -> int | None:
+        layout.addWidget(self.songs_list)
+        layout.addWidget(self.button_box)
+
+        if self.allow_multiple:
+            self.songs_list.setSelectionMode(
+                    QAbstractItemView.SelectionMode.ExtendedSelection)
+            for i in items:
+                item = QListWidgetItem(i)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsSelectable)
+                item.setCheckState(Qt.CheckState.Unchecked)
+                self.songs_list.addItem(item)
+        else:
+            self.songs_list.addItems(items)
+
+    def get_selected_index(self: SongsListDialog) -> int | None:
+        assert not self.allow_multiple
         selected_items = self.songs_list.selectedIndexes()
         if len(selected_items) == 0: return
         return selected_items[0].row()
+
+    def get_selected_indexes(self: SongsListDialog) -> list[int]:
+        assert self.allow_multiple
+        checked: list[int] = []
+        for i in range(self.songs_list.count()):
+            item = self.songs_list.item(i)
+            if not item: continue
+            if item.checkState() == Qt.CheckState.Checked:
+                checked.append(i)
+        return checked
+        # selected_items = self.songs_list.selectedIndexes()
+        # if len(selected_items) == 0: return
+        # return [x.row() for x in selected_items]
 
 class ImageViewer(QWidget):
     def __init__(self: ImageViewer, image_data: bytes, parent: QWidget | None = None):
@@ -908,9 +1011,11 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
     def open_copy_tags_dialog(self: EditTagsDialog, already_opened: bool) -> None:
         selected_song = None
         if already_opened:
-            self.dlg = SongsListDialog([x.file_name for x in self.songs], self)
+            other_songs = [x.file_name for x in self.songs]
+            other_songs.remove(self.song.file_name)
+            self.dlg = SongsListDialog(other_songs, False, self)
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
-            selected_idx = self.dlg.get_selected()
+            selected_idx = self.dlg.get_selected_index()
             if selected_idx is not None: selected_song = self.songs[selected_idx]
         else:
             selected_path = self.open_file_dialog("*.mp3")
