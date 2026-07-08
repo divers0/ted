@@ -23,6 +23,8 @@ from PyQt6.QtGui import (
     QCloseEvent,
     QAction,
     QContextMenuEvent,
+    QDragEnterEvent,
+    QDropEvent,
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
@@ -738,6 +740,8 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.centralwidget.destroy()
         self.__songs_added = False
 
+        self.setAcceptDrops(True)
+
         self.action_new.triggered.connect(self.new_album_dialog)
         self.action_save_all.triggered.connect(self.save_all)
         self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
@@ -752,6 +756,34 @@ class TableWindow(QMainWindow, Ui_TableWindow):
             self.menuFile.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
+
+    def dragEnterEvent(self: TableWindow, a0: QDragEnterEvent | None) -> None:
+        if not a0: return
+        mime_data = a0.mimeData()
+        if not mime_data: return
+        if not mime_data.hasUrls(): return
+        all_paths = [url.toLocalFile() for url in mime_data.urls()]
+
+        self.__accepted_drop_paths: list[str] = []
+        for path in all_paths:
+            if not path.lower().endswith(".mp3"): continue
+            self.__accepted_drop_paths.append(path)
+
+        if self.__accepted_drop_paths:
+            a0.acceptProposedAction()
+        else:
+            a0.ignore()
+
+    def dropEvent(self: TableWindow, a0: QDropEvent | None) -> None:
+        if not a0: return
+        songs = []
+        already_added_file_paths = [x.file_path for x in self.model.songs]
+        for path in self.__accepted_drop_paths:
+            if path in already_added_file_paths: continue
+            song = Song(path)
+            song.update_crop_cover()
+            songs.append(song)
+        self.add_songs(songs)
 
     def set_all(self: TableWindow) -> None:
         self.dlg = SetAllDialog()
@@ -899,7 +931,7 @@ class TableViewWithContextMenu(QTableView):
 
         text = "Remove this row"
         if len(selected_indexes) > 1:
-            text = "Remove rows"
+            text = "Remove selected rows"
         action_remove.triggered.connect(lambda: self.removeRows.emit(selected_indexes))
         action_remove.setText(text)
 
