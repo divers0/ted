@@ -779,6 +779,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
         self.action_set_all.triggered.connect(self.set_all)
         self.setup_table()
         if DEBUG:
+            self.menuFile.addSeparator()
             self.action_debug = QAction("Debug", self)
             self.menuFile.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
