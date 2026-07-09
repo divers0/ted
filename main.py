@@ -58,15 +58,32 @@ from PyQt6.QtWidgets import (
     QTableView,
     QAbstractItemView,
 )
-# from PyQt6.uic import load_ui
 
-# For Debug purposes
-from ui.TableWindow import Ui_TableWindow
-from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
-from ui.EditTagsDialog import Ui_EditTagsDialog
-from ui.SetAllDialog import Ui_SetAllDialog
+UI_DIR_NAME = "ui"
+UI_FILE_NAMES = [
+    "table_window.ui",
+    "album_creation_dialog.ui",
+    "edit_tags_dialog.ui",
+    "set_all_dialog.ui",
+]
 
-DEBUG = 1
+DEBUG = False
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--debug":
+        DEBUG = True
+
+if DEBUG:
+    from ui.TableWindow import Ui_TableWindow
+    from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
+    from ui.EditTagsDialog import Ui_EditTagsDialog
+    from ui.SetAllDialog import Ui_SetAllDialog
+else:
+    from PyQt6 import uic
+    Ui_TableWindow, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[0]))
+    Ui_AlbumCreationDialog, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[1]))
+    Ui_EditTagsDialog, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[2]))
+    Ui_SetAllDialog, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[3]))
+
 
 class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
     def __init__(self: AlbumCreationDialog, table_songs: list[Song], parent: QWidget | None = None) -> None:
