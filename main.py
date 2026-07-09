@@ -1,4 +1,3 @@
-from __future__ import annotations
 import os
 import sys
 import eyed3
@@ -46,9 +45,9 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPushButton,
     QFileDialog,
-    QItemDelegate,
     QSpinBox,
     QStyle,
+    QStyleFactory,
     QStyleOptionButton,
     QStyledItemDelegate,
     QVBoxLayout,
@@ -57,8 +56,8 @@ from PyQt6.QtWidgets import (
     QStyleOptionViewItem,
     QTableView,
     QAbstractItemView,
-    # uic
 )
+# from PyQt6.uic import load_ui
 
 # For Debug purposes
 from ui.TableWindow import Ui_TableWindow
@@ -89,9 +88,6 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             self.songs_button.setAutoDefault(True)
         else:
             self.add_song_browse_button_menu()
-
-        self.status_bar = QLabel()
-        self.status_bar_layout.addWidget(self.status_bar)
 
         self.button_box.accepted.connect(self.confirm_button_clicked)
         self.button_box.rejected.connect(self.reject)
@@ -149,7 +145,10 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
     def songs_browse_clicked(self: AlbumCreationDialog, already_opened: bool) -> None:
         if already_opened:
             self._new_songs = False
-            self.dlg = SongsListDialog([x.file_name for x in self.__table_songs], True, self)
+            self.dlg = SongsListDialog(
+                "Choose songs", [x.file_name for x in self.__table_songs],
+                True, self
+            )
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
             selected_idxs = self.dlg.get_selected_indexes()
             if selected_idxs:
@@ -192,7 +191,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
             song.update_crop_cover()
         self.accept()
 
-class YearLineEditDelegate(QItemDelegate):
+class YearLineEditDelegate(QStyledItemDelegate):
     def createEditor(
         self: YearLineEditDelegate,
         parent: QWidget | None,
@@ -214,6 +213,13 @@ class EditTagsButtonDelegate(QStyledItemDelegate):
         opt = QStyleOptionButton()
         opt.rect = option.rect
         opt.text = "Edit"
+        opt.state = QStyle.StateFlag.State_Enabled
+        if option.state & QStyle.StateFlag.State_MouseOver:
+            opt.state |= QStyle.StateFlag.State_MouseOver
+        if option.state & QStyle.StateFlag.State_Selected:
+                opt.state |= QStyle.StateFlag.State_Sunken | \
+                            QStyle.StateFlag.State_Selected | \
+                            QStyle.StateFlag.State_HasFocus
         style = QApplication.style()
         if not style: return
         style.drawControl(QStyle.ControlElement.CE_PushButton, opt, painter)
@@ -759,6 +765,21 @@ class TableWindow(QMainWindow, Ui_TableWindow):
             self.menuFile.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
+            self.style_counter = 0
+
+    def debug(self: TableWindow) -> None:
+        # print(" ---- debug ----")
+        # print(" ---- end debug ----")
+        all_styles = QStyleFactory.keys()
+        print("All styles:", all_styles)
+        style = QApplication.style()
+        if not style: return
+        print("Current Style:", style.objectName())
+        if self.style_counter == len(all_styles)-1:
+            self.style_counter = 0
+        else: self.style_counter += 1
+        QApplication.setStyle(all_styles[self.style_counter])
+        print("New Style:", all_styles[self.style_counter])
 
     def dragEnterEvent(self: TableWindow, a0: QDragEnterEvent | None) -> None:
         if not a0: return
@@ -900,8 +921,7 @@ class TableWindow(QMainWindow, Ui_TableWindow):
             if not cb: return
             cb_contents = cb.text()
             if cb_contents == "": return
-            # TODO: this won't work on windows
-            raw_paths = cb_contents.strip().split("\n")
+            raw_paths = cb_contents.strip().split(os.linesep)
             paths = [os.path.abspath(path) for path in raw_paths \
                             if os.path.isfile(path) and path.endswith(".mp3")]
         else:
@@ -939,10 +959,6 @@ class TableWindow(QMainWindow, Ui_TableWindow):
             if not res: return # TODO: Better error
             self.model.songs[i].artist = res[0]
             self.model.songs[i].title = res[1]
-
-    def debug(self: TableWindow) -> None:
-        print(" ---- debug ----")
-        print(" ---- end debug ----")
 
     def new_album_dialog(self: TableWindow) -> None:
         songs = []
@@ -1015,9 +1031,11 @@ class CheckableListWidget(QListWidget):
                 item.setCheckState(Qt.CheckState.Checked)
 
 class SongsListDialog(QDialog):
-    def __init__(self: SongsListDialog, items: list[str], allow_multiple: bool, parent: QWidget | None = None) -> None:
+    def __init__(self: SongsListDialog, title: str, items: list[str], allow_multiple: bool, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setFixedSize(580, 440)
+        self.setWindowTitle(title)
+
         self.allow_multiple = allow_multiple
 
         layout = QVBoxLayout()
@@ -1187,7 +1205,10 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog):
         if already_opened:
             other_songs = [x for x in self.songs]
             other_songs.remove(self.song)
-            self.dlg = SongsListDialog([x.file_name for x in other_songs], False, self)
+            self.dlg = SongsListDialog(
+                "Choose a song", [x.file_name for x in other_songs],
+                False, self
+            )
             if self.dlg.exec() != QDialog.DialogCode.Accepted: return
             selected_idx = self.dlg.get_selected_index()
             if selected_idx is not None: selected_song = other_songs[selected_idx]
