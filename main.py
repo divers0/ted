@@ -78,14 +78,13 @@ if DEBUG:
     from ui.EditTagsDialog import Ui_EditTagsDialog
     from ui.SetAllDialog import Ui_SetAllDialog
 else:
-    from PyQt6 import uic
-    Ui_TableWindow, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[0]))
-    Ui_AlbumCreationDialog, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[1]))
-    Ui_EditTagsDialog, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[2]))
-    Ui_SetAllDialog, _ = uic.loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[3]))
+    from PyQt6.uic.load_ui import loadUiType
+    Ui_TableWindow, _ = loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[0]))
+    Ui_AlbumCreationDialog, _ = loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[1]))
+    Ui_EditTagsDialog, _ = loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[2]))
+    Ui_SetAllDialog, _ = loadUiType(os.path.join(UI_DIR_NAME, UI_FILE_NAMES[3]))
 
-
-class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog):
+class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
     def __init__(self: AlbumCreationDialog, table_songs: list[Song], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setupUi(self)
@@ -726,7 +725,7 @@ class SongsTableModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self.__columns)
 
-class SetAllDialog(QDialog, Ui_SetAllDialog):
+class SetAllDialog(QDialog, Ui_SetAllDialog): # type: ignore
     Tags = Enum("Tags", ["TITLE", "ARTIST", "ALBUM", "ALBUM_ARTIST", "YEAR", "GENRE"])
     def __init__(self: SetAllDialog, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -759,7 +758,7 @@ class SetAllDialog(QDialog, Ui_SetAllDialog):
     def get_user_input(self: SetAllDialog) -> tuple[SetAllDialog.Tags, str]:
         return self.__tags[self.tags_combobox.currentText()], self.value_edit.text()
 
-class TableWindow(QMainWindow, Ui_TableWindow):
+class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
     def __init__(self: TableWindow) -> None:
         super().__init__()
         self.setupUi(self)
@@ -1135,7 +1134,7 @@ class ImageEditor:
         self.__image.save(output_bytes, format="JPEG", quality=95)
         return output_bytes.getvalue()
 
-class EditTagsDialog(QDialog, Ui_EditTagsDialog):
+class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
     CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
 
     def __init__(self: EditTagsDialog, songs: list[Song], index: int, parent: QWidget | None = None) -> None:
