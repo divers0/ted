@@ -432,12 +432,14 @@ class Tag:
         if new_lyrics == "":
             self.__remove_by_fids(self.__lyrics_fids)
             self.__lyrics_fids = []
-        self.id3[self.__frames["lyrics"]] = USLT(
+        fid = self.__frames["lyrics"]
+        self.id3[fid] = USLT(
             encoding=3, # UTF-8
             lang='eng', # TODO: should this be detected?
             desc='',
             text=new_lyrics
         )
+        self.__lyrics_fids.append(fid)
 
     @property
     def year(self: Tag) -> int:
