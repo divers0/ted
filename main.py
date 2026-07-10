@@ -1,11 +1,14 @@
 from __future__ import annotations
 import os
 import sys
-import eyed3
-import eyed3.id3
 from PIL import Image
 from io import BytesIO
-
+from mutagen.id3 import ID3
+from mutagen.id3._frames import (
+    Frame, APIC, TRCK, TPOS, USLT, TIT2, TPE1, TALB, TPE2, TCON, TDRC, TDRL,
+)
+from mutagen.id3._specs import PictureType
+from mutagen.id3._util import ID3NoHeaderError
 from typing import Any
 from enum import Enum
 from PyQt6.QtCore import (
@@ -209,6 +212,9 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
         self.accept()
 
 class YearLineEditDelegate(QStyledItemDelegate):
+    def __init__(self, parent: QObject | None = None) -> None:
+        self.validation_regex = "^$|[1-9][0-9]{3}"
+        super().__init__(parent)
     def createEditor(
         self: YearLineEditDelegate,
         parent: QWidget | None,
@@ -216,7 +222,7 @@ class YearLineEditDelegate(QStyledItemDelegate):
         index: QModelIndex) -> QLineEdit:
         editor = QLineEdit(parent)
         editor.setValidator(QRegularExpressionValidator(
-                            QRegularExpression("[1-9][0-9]{3}")))
+                            QRegularExpression(self.validation_regex)))
         return editor
 
 class EditTagsButtonDelegate(QStyledItemDelegate):
@@ -267,6 +273,228 @@ class TrackSpinBoxDelegate(QStyledItemDelegate):
         editor.setMaximum(100)
         return editor
 
+class Tag:
+    def __init__(self: Tag, id3: ID3) -> None:
+        self.id3 = id3
+        self.__frames: dict[str, tuple[str, type[Frame]]] = {
+            "title":          ("TIT2", TIT2),
+            "artist":         ("TPE1", TPE1),
+            "album":          ("TALB", TALB),
+            "album_artist":   ("TPE2", TPE2),
+            "genre":          ("TCON", TCON),
+            "cover":          ("APIC", APIC),
+            "track_num":      ("TRCK", TRCK),
+            "disc_num":       ("TPOS", TPOS),
+            "lyrics":         ("USLT", USLT),
+            "recording_date": ("TDRC", TDRC),
+            "release_date":   ("TDRL", TDRL),
+        }
+        self.year = self.__init_year()
+        self.track_num = self.__init_track_or_disc_num("track")
+        self.disc_num = self.__init_track_or_disc_num("disc")
+        self.__cover_fids = self.__init_cover_or_lyrics("cover")
+        self.__lyrics_fids = self.__init_cover_or_lyrics("lyrics")
+
+    def remove_covers(self: Tag) -> None:
+        self.__remove_by_fids(self.__cover_fids)
+        self.__cover_fids = []
+
+    def __remove_by_fids(self: Tag, fids: list[str]) -> None:
+        for fid in fids:
+            del self.id3[fid]
+
+    def __remove_frame_by_fid(self: Tag, fid: str) -> None:
+        del self.id3[fid]
+
+    def __simple_string_tag_getter(self: Tag, fid: str) -> str:
+        if fid not in self.id3: return ""
+        return self.id3[fid][0]
+
+    def __simple_string_tag_setter(self: Tag, name: str, new_value: str) -> None:
+        old_value = None
+        fid = self.__frames[name][0]
+        if fid == self.__frames["title"][0]:
+            old_value = self.title
+        elif fid == self.__frames["artist"][0]:
+            old_value = self.artist
+        elif fid == self.__frames["album"][0]:
+            old_value = self.album
+        elif fid == self.__frames["album_artist"][0]:
+            old_value = self.album_artist
+        elif fid == self.__frames["genre"][0]:
+            old_value = self.genre
+        if new_value == old_value: return
+        if new_value == "": self.__remove_frame_by_fid(fid)
+        self.id3[fid] = self.__frames[name][1](text=new_value)
+
+    @property
+    def title(self: Tag):
+        return self.__simple_string_tag_getter(self.__frames["title"][0])
+
+    @title.setter
+    def title(self: Tag, new_title: str) -> None:
+        self.__simple_string_tag_setter("title", new_title)
+
+    @property
+    def artist(self: Tag):
+        return self.__simple_string_tag_getter(self.__frames["artist"][0])
+
+    @artist.setter
+    def artist(self: Tag, new_artist: str) -> None:
+        self.__simple_string_tag_setter("artist", new_artist)
+
+    @property
+    def album(self: Tag):
+        return self.__simple_string_tag_getter(self.__frames["album"][0])
+
+    @album.setter
+    def album(self: Tag, new_album: str) -> None:
+        self.__simple_string_tag_setter("album", new_album)
+
+    @property
+    def album_artist(self: Tag):
+        return self.__simple_string_tag_getter(self.__frames["album_artist"][0])
+
+    @album_artist.setter
+    def album_artist(self: Tag, new_album_artist: str) -> None:
+        self.__simple_string_tag_setter("album_artist", new_album_artist)
+
+    @property
+    def genre(self: Tag):
+        return self.__simple_string_tag_getter(self.__frames["genre"][0])
+
+    @genre.setter
+    def genre(self: Tag, new_genre: str) -> None:
+        self.__simple_string_tag_setter("genre", new_genre)
+
+    @property
+    def track_num(self: Tag) -> tuple[int, int]:
+        text = self.__simple_string_tag_getter(self.__frames["track_num"][0])
+        if text == "": return (0, 0)
+        if "/" in text:
+            count, total = text.split("/")
+            return (int(count), int(total))
+        return (int(text), 0)
+
+    @track_num.setter
+    def track_num(self: Tag, new_track_num: tuple[int, int]) -> None:
+        if new_track_num == self.track_num: return
+        fid = self.__frames["track_num"][0]
+        if new_track_num == (0, 0): return self.__remove_frame_by_fid(fid)
+        res = str(new_track_num[0])
+        if new_track_num[1] != 0:
+            res = str(new_track_num[0])+"/"+str(new_track_num[1])
+        self.id3[fid] = TRCK(text=res)
+
+    @property
+    def disc_num(self: Tag) -> tuple[int, int]:
+        text = self.__simple_string_tag_getter(self.__frames["disc_num"][0])
+        if text == "": return (0, 0)
+        if "/" in text:
+            count, total = text.split("/")
+            return (int(count), int(total))
+        return (int(text), 0)
+
+    @disc_num.setter
+    def disc_num(self: Tag, new_disc_num: tuple[int, int]) -> None:
+        if new_disc_num == self.disc_num: return
+        fid = self.__frames["disc_num"][0]
+        if new_disc_num == (0, 0): return self.__remove_frame_by_fid(fid)
+        res = str(new_disc_num[0])
+        if new_disc_num[1] != 0:
+            res = str(new_disc_num[0])+"/"+str(new_disc_num[1])
+        self.id3[fid] = TPOS(text=res)
+
+    @property
+    def cover(self: Tag) -> bytes | None:
+        if len(self.__cover_fids) == 0: return
+        return self.id3[self.__cover_fids[0]].data
+
+    @cover.setter
+    def cover(self: Tag, image_data: bytes) -> None:
+        self.id3[self.__frames["cover"][0]] = APIC(
+            encoding = 3, # UTF-8
+            mime = "image/jpeg", # TODO: not handling png files
+            type=PictureType.COVER_FRONT, 
+            desc="",
+            data=image_data
+        )
+
+    @property
+    def lyrics(self: Tag):
+        if len(self.__lyrics_fids) == 0: return ""
+        return self.id3[self.__lyrics_fids[0]].text
+
+    @lyrics.setter
+    def lyrics(self: Tag, new_lyrics: str) -> None:
+        if new_lyrics == "":
+            self.__remove_by_fids(self.__lyrics_fids)
+            self.__lyrics_fids = []
+        self.id3[self.__frames["lyrics"]] = USLT(
+            encoding=3, # UTF-8
+            lang='eng', # TODO: should this be detected?
+            desc='',
+            text=new_lyrics
+        )
+
+    @property
+    def year(self: Tag) -> int:
+        fid = self.__frames["recording_date"][0]
+        if fid not in self.id3: return 0
+        year = self.id3[fid][0].year
+        return year if year else 0
+
+    @year.setter
+    def year(self: Tag, new_year: int) -> None:
+        if new_year == self.year: return
+        frame = self.__frames["recording_date"]
+        if new_year == 0: return self.__remove_frame_by_fid(frame[0])
+        self.id3[frame[0]] = frame[1](text=str(new_year))
+
+    def __init_cover_or_lyrics(self: Tag, name: str) -> list[str]:
+        res = [k for k in self.id3.keys() if k.startswith(self.__frames[name][0])]
+        # TODO: add a general way of showing these messages
+        if DEBUG:
+            if len(res) > 1:
+                print(f"Found more than one {name} for {self.id3.filename}")
+        return res
+
+    def __init_track_or_disc_num(self: Tag, name: str) -> tuple[int, int]:
+        fid = self.__frames[name+"_num"][0]
+        if fid not in self.id3: return (0, 0)
+        frame_data = self.id3[fid][0]
+        count = total = 0
+        if "/" in frame_data:
+            try:
+                count, total = frame_data.split("/")
+            except Exception as e:
+                print(f"Could not get {name} number for {self.id3.filename}: {e}")
+                return (0, 0)
+            count = int(count)
+            total = int(total)
+        else:
+            count = int(frame_data)
+        return (count, total)
+
+    def __init_year(self: Tag) -> int:
+        recording_date_fid = self.__frames["recording_date"][0]
+        if recording_date_fid in self.id3:
+            timestamp = self.id3[recording_date_fid][0]
+            year = timestamp.year
+            if year: return year
+            if timestamp.get_text() == "":
+                self.__remove_frame_by_fid(recording_date_fid)
+            return 0
+        release_date_fid = self.__frames["recording_date"][0]
+        if release_date_fid in self.id3:
+            timestamp = self.id3[release_date_fid][0]
+            year = timestamp.year
+            if year:
+                self.id3[recording_date_fid] = TDRL(text=timestamp.get_text())
+            self.__remove_frame_by_fid(release_date_fid)
+            return year
+        return 0
+
 class Song(QObject):
     #                           proerty_name, new_value
     propertyChanged = pyqtSignal(str, object)
@@ -276,17 +504,21 @@ class Song(QObject):
         self.__new_cover = None
         self.__file_path = os.path.abspath(file_path)
         self.__file_name = os.path.basename(self.__file_path)
-        self.__audio_file = eyed3.load(self.__file_path) # TODO: add a check
+        stat = os.stat(self.__file_path)
+        self.__time = (stat.st_atime, stat.st_mtime)
+        try:
+            id3 = ID3(self.__file_path)
+        except ID3NoHeaderError:
+            id3 = ID3()
+            self.edited = True
+        self.__tag = Tag(id3)
         self.__remove_other_tags = True
         self.__preserve_file_time = True
         self.__crop_cover_to_square = False
         self.__original_file_has_tags = True
-        self.__edited = False
+        self.edited = False
 
-        assert self.__audio_file
-        if not self.__audio_file.tag:
-            self.__original_file_has_tags = False
-            self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4)
+        if not id3: self.__original_file_has_tags = False
 
     def updated_file_path(self: Song) -> str:
         return os.path.join(os.path.dirname(self.__file_path), self.__file_name)
@@ -304,7 +536,7 @@ class Song(QObject):
     @crop_cover_to_square.setter
     def crop_cover_to_square(self: Song, value: bool) -> None:
         self.__crop_cover_to_square = value
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     @property
     def preserve_file_time(self: Song) -> bool:
@@ -313,7 +545,7 @@ class Song(QObject):
     @preserve_file_time.setter
     def preserve_file_time(self: Song, value: bool) -> None:
         self.__preserve_file_time = value
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     @property
     def remove_other_tags(self: Song) -> bool:
@@ -322,7 +554,7 @@ class Song(QObject):
     @remove_other_tags.setter
     def remove_other_tags(self: Song, value: bool) -> None:
         self.__remove_other_tags = value
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     def __repr__(self) -> str:
         return f"Song(track=\"{self.track_num}\" title={self.title.__repr__()} "+ \
@@ -339,15 +571,13 @@ class Song(QObject):
     def new_cover(self: Song, new_cover: bytes | None) -> None:
         if new_cover == self.__new_cover: return
         self.__new_cover = new_cover
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
-    def __remove_all_tags(self: Song, preserve_file_time: bool) -> bool:
-        if not self.__original_file_has_tags: return True
-        ret = eyed3.id3.Tag.remove(self.__audio_file.path, eyed3.id3.ID3_ANY_VERSION, # type: ignore
-                                    preserve_file_time=preserve_file_time)
-        if ret: self.__audio_file.initTag(version=eyed3.id3.ID3_V2_4) # type: ignore
-        return ret
+    def __remove_all_tags(self: Song) -> None:
+        if not self.__original_file_has_tags: return
+        self.__tag = Tag(ID3())
 
+    # TODO
     def _get_relevant_tags(self: Song) -> dict[str, Any]:
         return {
             "title": self.title,
@@ -363,10 +593,10 @@ class Song(QObject):
         }
 
     def save(self: Song) -> bool:
-        if not self.__edited: return False
+        if not self.edited: return False
         if self.__remove_other_tags:
             tags = self._get_relevant_tags()
-            if not self.__remove_all_tags(self.__preserve_file_time): return False
+            self.__remove_all_tags()
             self.title = tags["title"]
             self.artist = tags["artist"]
             self.album = tags["album"]
@@ -383,7 +613,10 @@ class Song(QObject):
             image_editor = ImageEditor(self.cover)
             self.cover = image_editor.crop_to_center_square()
 
-        self.__audio_file.tag.save(preserve_file_time=self.__preserve_file_time) # type: ignore
+        self.__tag.id3.save(self.__file_path)
+        if self.__preserve_file_time:
+            os.utime(self.__file_path, self.__time)
+
         if self.__file_name != os.path.basename(self.__file_path):
             return self.__rename()
         return True
@@ -396,26 +629,16 @@ class Song(QObject):
             print(f"Error {self.__file_name}: path already exists") # TODO: BETTER ERROR
             return False
         try:
-            self.__audio_file.rename(self.__file_name, preserve_file_time=self.__preserve_file_time) # type: ignore
+            os.rename(self.__file_path, new_path)
+            if self.__preserve_file_time:
+                os.utime(new_path, self.__time)
         except Exception as e:
             print(f"Error {self.__file_name}: {e}")
             return False
         return True
 
-    def remove_images(self: Song) -> None:
-        self._remove_frame_by_fid(eyed3.id3.frames.IMAGE_FID)
-
-    def _remove_frame_by_fid(self: Song, fid: bytes) -> None:
-        del self.__audio_file.tag.frame_set[fid] # type: ignore
-
-    def remove_unknown_tags(self: Song) -> None:
-        raise NotImplementedError()
-        for fid in self.__audio_file.tag.unknown_frame_ids: # type: ignore
-            del self.__audio_file.tag.frame_set[fid] # type: ignore
-
-    def remove_comments(self: Song) -> None:
-        raise NotImplementedError()
-        del self.__audio_file.tag.frame_set[eyed3.id3.frames.COMMENT_FID] # type: ignore
+    def remove_covers(self: Song) -> None:
+        self.__tag.remove_covers()
 
     def get_title_and_artist_by_file_name(self: Song) -> tuple[str, str] | None:
         file_name = os.path.splitext(
@@ -425,18 +648,14 @@ class Song(QObject):
         parts_n = len(splitted_file_name)
         if parts_n == 2: return (splitted_file_name[0], splitted_file_name[1])
         
-    def _has_cover(self: Song) -> bool:
-        return len(self.__audio_file.tag.images) > 0 # type: ignore
-
     @property
     def cover(self: Song) -> bytes | None:
-        if not self._has_cover(): return
-        return self.__audio_file.tag.images[0].image_data # type: ignore
+        return self.__tag.cover
 
     @cover.setter
     def cover(self: Song, image_data: bytes) -> None:
-        self.__audio_file.tag.images.set(3, image_data, "image/jpeg") # type: ignore
-        if not self.__edited: self.__edited = True
+        self.__tag.cover = image_data
+        if not self.edited: self.edited = True
 
     @property
     def file_path(self: Song) -> str:
@@ -452,146 +671,96 @@ class Song(QObject):
 
         self.__file_name = new_file_name
         self.propertyChanged.emit("file_name", new_file_name)
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     @property
     def title(self: Song) -> str:
-        title = self.__audio_file.tag.title # type: ignore
-        if not title: return ""
-        return title
+        return self.__tag.title
 
     @title.setter
-    def title(self: Song, new_title: str | None) -> None:
-        if new_title == self.__audio_file.tag.title: return # type: ignore
-
-        self.__audio_file.tag.title = new_title # type: ignore
+    def title(self: Song, new_title: str) -> None:
+        self.__tag.title = new_title
         self.propertyChanged.emit("title", new_title)
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     @property
     def artist(self: Song) -> str:
-        artist = self.__audio_file.tag.artist # type: ignore
-        if not artist: return ""
-        return artist
+        return self.__tag.artist
 
     @artist.setter
     def artist(self: Song, new_artist: str) -> None:
-        if new_artist == self.__audio_file.tag.artist: return # type: ignore
-
-        self.__audio_file.tag.artist = new_artist # type: ignore
+        self.__tag.artist = new_artist
         self.propertyChanged.emit("artist", new_artist)
-        if not self.__edited: self.__edited = True
-
-    @property
-    def track_num(self: Song) -> tuple[int, int]:
-        track_num = self.__audio_file.tag.track_num # type: ignore
-        if not track_num: return (0, 0)
-        count = total = 0
-        if track_num.count: count = track_num.count
-        if track_num.total: total = track_num.total
-        return (count, total)
-
-    @track_num.setter
-    def track_num(self: Song, new_track_num: tuple[int, int]) -> None:
-        if new_track_num == self.__audio_file.tag.track_num: return # type: ignore
-
-        self.__audio_file.tag.track_num = new_track_num # type: ignore
-        self.propertyChanged.emit("track_num", new_track_num)
-        if not self.__edited: self.__edited = True
-
-    @property
-    def disc_num(self: Song) -> tuple[int, int]:
-        disc_num = self.__audio_file.tag.disc_num # type: ignore
-        if not disc_num: return (0, 0)
-        count = total = 0
-        if disc_num.count: count = disc_num.count
-        if disc_num.total: total = disc_num.total
-        return (count, total)
-
-    @disc_num.setter
-    def disc_num(self: Song, new_disc_num: tuple[int, int]) -> None:
-        if new_disc_num == self.__audio_file.tag.disc_num: return # type: ignore
-
-        self.__audio_file.tag.disc_num = new_disc_num # type: ignore
-        self.propertyChanged.emit("disc_num", new_disc_num)
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     @property
     def album(self: Song) -> str:
-        album = self.__audio_file.tag.album # type: ignore
-        if not album: return ""
-        return album
+        return self.__tag.album
 
     @album.setter
     def album(self: Song, new_album: str) -> None:
-        if new_album == self.__audio_file.tag.album: return # type: ignore
-
-        self.__audio_file.tag.album = new_album # type: ignore
+        self.__tag.album = new_album
         self.propertyChanged.emit("album", new_album)
-        if not self.__edited: self.__edited = True
+        if not self.edited: self.edited = True
 
     @property
     def album_artist(self: Song) -> str:
-        album_artist = self.__audio_file.tag.album_artist # type: ignore
-        if not album_artist: return ""
-        return album_artist
+        return self.__tag.album_artist
 
     @album_artist.setter
     def album_artist(self: Song, new_album_artist: str) -> None:
-        if new_album_artist == self.__audio_file.tag.album_artist: return # type: ignore
-
-        self.__audio_file.tag.album_artist = new_album_artist # type: ignore
-        if not self.__edited: self.__edited = True
+        self.__tag.album_artist = new_album_artist
+        self.propertyChanged.emit("album", new_album_artist)
+        if not self.edited: self.edited = True
 
     @property
     def genre(self: Song) -> str:
-        genre = self.__audio_file.tag.genre # type: ignore
-        if not genre: return ""
-        return genre.name
+        return self.__tag.genre
 
     @genre.setter
     def genre(self: Song, new_genre: str) -> None:
-        if new_genre == self.__audio_file.tag.genre: return # type: ignore
+        self.__tag.genre = new_genre
+        if not self.edited: self.edited = True
 
-        self.__audio_file.tag.genre = new_genre # type: ignore
-        if not self.__edited: self.__edited = True
+    @property
+    def track_num(self: Song) -> tuple[int, int]:
+        return self.__tag.track_num
+
+    @track_num.setter
+    def track_num(self: Song, new_track_num: tuple[int, int]) -> None:
+        self.__tag.track_num = new_track_num
+        self.propertyChanged.emit("track_num", new_track_num)
+        if not self.edited: self.edited = True
+
+    @property
+    def disc_num(self: Song) -> tuple[int, int]:
+        return self.__tag.disc_num
+
+    @disc_num.setter
+    def disc_num(self: Song, new_disc_num: tuple[int, int]) -> None:
+        self.__tag.disc_num = new_disc_num
+        self.propertyChanged.emit("disc_num", new_disc_num)
+        if not self.edited: self.edited = True
 
     @property
     def lyrics(self: Song) -> str:
-        if len(self.__audio_file.tag.lyrics) == 0: return "" # type: ignore
-        return self.__audio_file.tag.lyrics[0].text # type: ignore
+        return self.__tag.lyrics
 
     @lyrics.setter
     def lyrics(self: Song, new_lyrics: str) -> None:
         if new_lyrics == self.lyrics: return
-        if new_lyrics == "":
-            self._remove_frame_by_fid(eyed3.id3.frames.LYRICS_FID)
-            if not self.__edited: self.__edited = True
-            return
-        self.__audio_file.tag.lyrics.set(new_lyrics) # type: ignore
-        if not self.__edited: self.__edited = True
-
-    def fix_date(self: Song) -> int:
-        self.__audio_file.tag.recording_date = self.__audio_file.tag.getBestDate() # type: ignore
-        self.__audio_file.tag.original_release_date = None # type: ignore
-        self.__audio_file.tag.release_date = None # type: ignore
-        return self.__audio_file.tag.recording_date.year # type: ignore
+        self.__tag.lyrics = new_lyrics
+        if not self.edited: self.edited = True
 
     @property
-    def year(self: Song) -> int | None:
-        best_date = self.__audio_file.tag.getBestDate(prefer_recording_date=True) # type: ignore
-        if not best_date: return
-        if best_date != self.__audio_file.tag.recording_date: # type: ignore
-            return self.fix_date()
-        return best_date.year
+    def year(self: Song) -> int:
+        return self.__tag.year
 
     @year.setter
-    def year(self: Song, new_year: int | None) -> None:
-        if new_year == self.year: return
-        self.__audio_file.tag.recording_date = str(new_year) # type: ignore
-        if not self.__edited: self.__edited = True
+    def year(self: Song, new_year: int) -> None:
+        self.__tag.year = new_year
+        if not self.edited: self.edited = True
         self.propertyChanged.emit("year", new_year)
-
 
 class SongsTableModel(QAbstractTableModel):
     #                         empty_table
@@ -663,7 +832,8 @@ class SongsTableModel(QAbstractTableModel):
         if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole): return
         match col:
             case 'Track #':
-                return song.track_num[0]
+                track_num_count = song.track_num[0]
+                return track_num_count if track_num_count != 0 else None
             case 'Title':
                 return song.title
             case 'Artist':
@@ -671,7 +841,8 @@ class SongsTableModel(QAbstractTableModel):
             case 'Album':
                 return song.album
             case 'Year':
-                return song.year
+                year = song.year
+                return year if year != 0 else None
             case 'File Name':
                 return song.file_name
 
@@ -693,8 +864,11 @@ class SongsTableModel(QAbstractTableModel):
             case 'Album':
                 song.album = value
             case 'Year':
-                if not value.isdigit(): return False
-                song.year = int(value)
+                if value == "":
+                    song.year = 0
+                else:
+                    if not value.isdigit(): return False
+                    song.year = int(value)
             case 'File Name':
                 song.file_name = value
             case _:
@@ -727,7 +901,7 @@ class SongsTableModel(QAbstractTableModel):
 
 class SetAllDialog(QDialog, Ui_SetAllDialog): # type: ignore
     Tags = Enum("Tags", ["TITLE", "ARTIST", "ALBUM", "ALBUM_ARTIST", "YEAR", "GENRE"])
-    def __init__(self: SetAllDialog, parent: QWidget | None = None) -> None:
+    def __init__(self: SetAllDialog, year_validation_regex: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setupUi(self)
         self.__tags = {
@@ -742,12 +916,13 @@ class SetAllDialog(QDialog, Ui_SetAllDialog): # type: ignore
         self.button_box.rejected.connect(self.reject)
         self.tags_combobox.addItems(self.__tags.keys())
         self.tags_combobox.currentTextChanged.connect(self.__combobox_changed)
+        self.__year_validation_regex = year_validation_regex
         self.__validator_set = False
 
     def __combobox_changed(self: SetAllDialog, text: str) -> None:
         if text == "Year":
             self.value_edit.setValidator(QRegularExpressionValidator(
-                                        QRegularExpression("[1-9][0-9]{3}")))
+                                        QRegularExpression(self.__year_validation_regex)))
             if not self.value_edit.hasAcceptableInput():
                 self.value_edit.setText("")
             self.__validator_set = True
@@ -842,7 +1017,7 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
         if songs: self.add_songs(songs)
 
     def set_all(self: TableWindow) -> None:
-        self.dlg = SetAllDialog()
+        self.dlg = SetAllDialog(self.year_line_edit_delegate.validation_regex)
         if self.dlg.exec() != QDialog.DialogCode.Accepted: return
         user_inp = self.dlg.get_user_input()
         match user_inp[0]:
@@ -955,12 +1130,17 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
 
     def save_all(self: TableWindow) -> None:
         failed = []
+        nothing_to_save = True
         for i in range(len(self.model.songs)):
+            if not self.model.songs[i].edited: continue
+            nothing_to_save = False
             this_new_path = self.model.songs[i].updated_file_path()
             self.status_bar.showMessage(f"Saving \"{this_new_path}\"")
             if not self.model.songs[i].save(): failed.append(this_new_path)
-        message = "Finished Saving"
         time = 5000
+        if nothing_to_save:
+            return self.status_bar.showMessage("Nothing to save", time)
+        message = "Finished Saving"
         if failed:
             message += " (could not save: \""+", ".join(failed)+"\")"
             time *= 2
@@ -990,7 +1170,9 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
 
     def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
         if index.model() is self.proxy: index = self.proxy.mapToSource(index)
-        self.dialog = EditTagsDialog(self.model.songs, index.row(), self)
+        self.dialog = EditTagsDialog(
+                        self.model.songs, index.row(),
+                        self.year_line_edit_delegate.validation_regex, self)
         self.dialog.exec()
 
     def add_songs(self: TableWindow, songs: list[Song]) -> None:
@@ -1116,7 +1298,7 @@ class ImageEditor:
     def __init__(self: ImageEditor, data: bytes) -> None:
         self.__data = data
         self.__image = Image.open(BytesIO(data))
-        if self.__image.format not in  ("JPEG", "PNG"):
+        if self.__image.format not in ("JPEG", "PNG"):
             raise ValueError(f"Expected JPEG/PNG format, got {self.__image.format}")
 
     def image_is_square(self: ImageEditor) -> bool:
@@ -1137,7 +1319,7 @@ class ImageEditor:
 class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
     CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
 
-    def __init__(self: EditTagsDialog, songs: list[Song], index: int, parent: QWidget | None = None) -> None:
+    def __init__(self: EditTagsDialog, songs: list[Song], index: int, year_validation_regex: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setupUi(self)
         self.setFixedSize(self.size())
@@ -1146,7 +1328,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.song = self.songs[self.index]
 
         self.year_edit.setValidator(QRegularExpressionValidator(
-                                    QRegularExpression("[1-9][0-9]{3}")))
+                                    QRegularExpression(year_validation_regex)))
         self.button_box.accepted.connect(self.confirm)
         self.button_box.rejected.connect(self.close)
         self.tabs.setCurrentIndex(0)
@@ -1204,11 +1386,6 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.crop_cover_checkbox.setChecked(self.song.crop_cover_to_square)
 
         self.music_list.hide()
-        # if self.song.crop_cover_to_square:
-        #     self.crop_cover_checkbox.setChecked(True)
-        #     self.crop_cover_checkbox.setEnabled(True)
-        # else:
-        #     self.crop_cover_checkbox.setChecked(False)
 
     @property
     def cover(self: EditTagsDialog) -> bytes | None:
@@ -1248,7 +1425,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.track_total_spinbox.setValue(selected_song.track_num[1])
         self.disc_count_spinbox.setValue(selected_song.disc_num[0])
         self.disc_total_spinbox.setValue(selected_song.disc_num[1])
-        self.year_edit.setText(str(selected_song.year))
+        year = str(selected_song.year)
+        if year == "0": year = ""
+        self.year_edit.setText(year)
 
     def copy_cover(self: EditTagsDialog) -> None:
         selected_path = self.open_file_dialog("*.mp3")
@@ -1282,10 +1461,6 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.new_cover = image_data
         self.update_cover_display()
 
-    # def clean_out_tags(self: EditTagsDialog) -> None:
-    #     self.song.remove_unknown_tags()
-    #     self.song.remove_comments()
-
     def confirm(self: EditTagsDialog) -> None:
         self.song.title = self.title_edit.text()
         self.song.artist = self.artist_edit.text()
@@ -1296,13 +1471,13 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.song.lyrics = self.lyrics_edit.toPlainText()
 
         year_edit = self.year_edit.text()
-        if year_edit != "": self.song.year = int(year_edit)
+        self.song.year = int(year_edit) if year_edit != "" else 0
 
         self.song.track_num = (self.track_count_spinbox.value(), self.track_total_spinbox.value())
         self.song.disc_num = (self.disc_count_spinbox.value(), self.disc_total_spinbox.value())
 
         self.song.new_cover = self.new_cover
-        if not self.cover and self.song.cover: self.song.remove_images()
+        if not self.cover and self.song.cover: self.song.remove_covers()
 
         self.song.remove_other_tags = self.remove_other_tags_checkbox.isChecked()
         self.song.preserve_file_time = self.preserve_file_time_checkbox.isChecked()
