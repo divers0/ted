@@ -412,13 +412,15 @@ class Tag:
 
     @cover.setter
     def cover(self: Tag, image_data: bytes) -> None:
-        self.id3[self.__frames["cover"][0]] = APIC(
+        fid = self.__frames["cover"][0]
+        self.id3[fid] = APIC(
             encoding = 3, # UTF-8
             mime = "image/jpeg", # TODO: not handling png files
             type=PictureType.COVER_FRONT, 
             desc="",
             data=image_data
         )
+        self.__cover_fids.append(fid)
 
     @property
     def lyrics(self: Tag):
@@ -614,6 +616,9 @@ class Song(QObject):
             assert self.cover
             image_editor = ImageEditor(self.cover)
             self.cover = image_editor.crop_to_center_square()
+
+        # doing this so that the new cover will be treated as the embedded one after saving
+        self.__new_cover = None
 
         self.__tag.id3.save(self.__file_path)
         if self.__preserve_file_time:
