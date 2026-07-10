@@ -129,9 +129,9 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
                                         lambda: self.songs_browse_clicked(True))
         self.songs_menu.addAction(select_already_opened_songs_action)
         self.songs_menu.addAction(
-                QIcon(), "Browse for files",
-                lambda: self.songs_browse_clicked(False),
-                Qt.ConnectionType.AutoConnection
+            QIcon(), "Browse for files",
+            lambda: self.songs_browse_clicked(False),
+            Qt.ConnectionType.AutoConnection
         )
 
     def clear_cover_button_clicked(self: AlbumCreationDialog) -> None:
@@ -501,6 +501,8 @@ class Song(QObject):
 
     def __init__(self: Song, file_path: str) -> None:
         super().__init__()
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError()
         self.__new_cover = None
         self.__file_path = os.path.abspath(file_path)
         self.__file_name = os.path.basename(self.__file_path)
@@ -630,6 +632,7 @@ class Song(QObject):
             return False
         try:
             os.rename(self.__file_path, new_path)
+            self.__file_path = new_path
             if self.__preserve_file_time:
                 os.utime(new_path, self.__time)
         except Exception as e:
@@ -668,6 +671,7 @@ class Song(QObject):
     @file_name.setter
     def file_name(self: Song, new_file_name: str) -> None:
         if new_file_name == self.__file_name: return
+        if new_file_name == "": return
 
         self.__file_name = new_file_name
         self.propertyChanged.emit("file_name", new_file_name)
@@ -870,12 +874,12 @@ class SongsTableModel(QAbstractTableModel):
                     if not value.isdigit(): return False
                     song.year = int(value)
             case 'File Name':
+                if value == "": return False
                 song.file_name = value
             case _:
                 return False
         self.tableChanged.emit(False) # for resizing the columns on update
         return True
-
 
     def flags(self:SongsTableModel, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid(): return Qt.ItemFlag.NoItemFlags
@@ -885,7 +889,7 @@ class SongsTableModel(QAbstractTableModel):
         return flags | Qt.ItemFlag.ItemIsEditable
 
     def headerData(
-        self,
+        self: SongsTableModel,
         section: int,
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole) -> Any:
@@ -1316,6 +1320,26 @@ class ImageEditor:
         self.__image.save(output_bytes, format="JPEG", quality=95)
         return output_bytes.getvalue()
 
+class NonEmptyLineEditFilter(QObject):
+    def __init__(self: NonEmptyLineEditFilter, initial_text: str,
+                                         parent: QObject | None = None) -> None:
+        self.__initial_text = initial_text
+        super().__init__(parent)
+
+    def eventFilter(self: NonEmptyLineEditFilter, a0: QObject | None,
+                                                     a1: QEvent | None) -> bool:
+        res = super().eventFilter(a0, a1)
+        obj: QLineEdit = a0 # type: ignore
+        event: QEvent = a1 # type: ignore
+        if event.type() not in (
+                QEvent.Type.FocusOut, QEvent.Type.Close, QEvent.Type.KeyPress):
+            return res
+
+        text = obj.text()
+        if not text:
+            obj.setText(self.__initial_text)
+        return res
+
 class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
     CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
 
@@ -1339,11 +1363,9 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
 
         self.fill_in_fields_from_song()
+        self.filter = NonEmptyLineEditFilter(self.song.file_name)
+        self.file_name_edit.installEventFilter(self.filter)
         self.display_cover()
-
-
-        self.file_name_edit.setText(os.path.basename(self.song.file_name))
-
 
         # Change Cover Button
         self.cover_menu = QMenu(self)
@@ -1567,6 +1589,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.disc_count_spinbox.setValue(self.song.disc_num[0])
         year = self.song.year
         if year: self.year_edit.setText(str(year))
+        self.file_name_edit.setText(os.path.basename(self.song.file_name))
         self.lyrics_edit.setPlainText(self.song.lyrics)
 
 if __name__ == "__main__":
