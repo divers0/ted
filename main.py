@@ -1045,8 +1045,10 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
                 for i in range(len(self.model.songs)):
                     self.model.songs[i].album_artist = user_inp[1]
             case self.dlg.Tags.YEAR:
+                val = user_inp[1]
+                if val == "": val = 0
                 for i in range(len(self.model.songs)):
-                    self.model.songs[i].year = int(user_inp[1])
+                    self.model.songs[i].year = int(val)
             case self.dlg.Tags.GENRE:
                 for i in range(len(self.model.songs)):
                     self.model.songs[i].genre = user_inp[1]
