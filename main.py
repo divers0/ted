@@ -432,7 +432,7 @@ class Tag:
         if new_lyrics == "":
             self.__remove_by_fids(self.__lyrics_fids)
             self.__lyrics_fids = []
-        fid = self.__frames["lyrics"]
+        fid = self.__frames["lyrics"][0]
         self.id3[fid] = USLT(
             encoding=3, # UTF-8
             lang='eng', # TODO: should this be detected?
@@ -1028,7 +1028,7 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
         if songs: self.add_songs(songs)
 
     def set_all(self: TableWindow) -> None:
-        self.dlg = SetAllDialog(self.year_line_edit_delegate.validation_regex)
+        self.dlg = SetAllDialog(self.year_line_edit_delegate.validation_regex, self)
         if self.dlg.exec() != QDialog.DialogCode.Accepted: return
         user_inp = self.dlg.get_user_input()
         match user_inp[0]:
