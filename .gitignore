@@ -1,7 +1,7 @@
 old/
 TODO.md
 stubs/
-ui/*.py
+ui/generated/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

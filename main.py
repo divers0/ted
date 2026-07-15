@@ -38,7 +38,6 @@ from PyQt6.QtGui import (
     QRegularExpressionValidator,
     QIcon,
 )
-
 from PyQt6.QtWidgets import (
     QApplication,
     QDialogButtonBox,
@@ -63,23 +62,16 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
 )
 
-UI_DIR_NAME = "ui"
-UI_FILE_NAMES = [
-    "table_window.ui",
-    "album_creation_dialog.ui",
-    "edit_tags_dialog.ui",
-    "set_all_dialog.ui",
-]
+from ui.generated.TableWindow import Ui_TableWindow
+from ui.generated.AlbumCreationDialog import Ui_AlbumCreationDialog
+from ui.generated.EditTagsDialog import Ui_EditTagsDialog
+from ui.generated.SetAllDialog import Ui_SetAllDialog
+from config import DISCARD_ICON_PATH, SVG_LOGO_FILE_PATH
 
 DEBUG = False
 if len(sys.argv) > 1:
     if sys.argv[1] == "--debug":
         DEBUG = True
-
-from ui.TableWindow import Ui_TableWindow
-from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
-from ui.EditTagsDialog import Ui_EditTagsDialog
-from ui.SetAllDialog import Ui_SetAllDialog
 
 class AlbumCreationDialog(QDialog):
     def __init__(self: AlbumCreationDialog, table_songs: list[Song], parent: QWidget | None = None) -> None:
@@ -94,7 +86,7 @@ class AlbumCreationDialog(QDialog):
         self.ui.cover_button.setAutoDefault(True)
 
         self.ui.clear_cover_button.clicked.connect(self.clear_cover_button_clicked)
-        self.ui.clear_cover_button.setIcon(QIcon("./icons/delete.png")) # TODO
+        self.ui.clear_cover_button.setIcon(QIcon(str(DISCARD_ICON_PATH)))
         self.ui.clear_cover_button.setAutoDefault(True)
 
         if not self.__table_songs:
@@ -508,7 +500,7 @@ class Song(QObject):
         self.__file_path = file_path.absolute()
         self.__file_name: str = self.__file_path.name
 
-        stat = os.stat(self.__file_path)
+        stat = self.__file_path.stat()
         self.__time: tuple[int, int] = (stat.st_atime_ns, stat.st_mtime_ns)
 
         self.__new_cover: bytes | None = None
@@ -640,8 +632,7 @@ class Song(QObject):
             print(f"Error {self.__file_name}: path already exists") # TODO: BETTER ERROR
             return False
         try:
-            os.rename(self.__file_path, new_path)
-            self.__file_path = new_path
+            self.__file_path =  self.__file_path.rename(new_path)
             if self.__preserve_file_time:
                 os.utime(new_path, self.__time)
         except Exception as e:
@@ -951,6 +942,7 @@ class TableWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_TableWindow()
         self.ui.setupUi(self)
+        self.setWindowIcon(QIcon(str(SVG_LOGO_FILE_PATH)))
         self.ui.centralwidget.destroy()
         self.__songs_added = False
 

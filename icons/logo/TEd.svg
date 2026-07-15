@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="256mm"
+   height="256mm"
+   viewBox="0 0 256 256"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   sodipodi:docname="TEd.svg"
+   inkscape:export-filename="TEd-16.png"
+   inkscape:export-xdpi="1.5875"
+   inkscape:export-ydpi="1.5875"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.68862935"
+     inkscape:cx="397.89184"
+     inkscape:cy="555.4512"
+     inkscape:window-width="1920"
+     inkscape:window-height="991"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1"
+     showguides="true"
+     inkscape:export-bgcolor="#ffffff00">
+    <sodipodi:guide
+       position="-111.03881,301.2264"
+       orientation="0.70710678,-0.70710678"
+       id="guide1"
+       inkscape:locked="false" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1" />
+  <g
+     id="all"
+     style="display:inline"
+     transform="matrix(1.2674384,0,0,1.2674384,-3.6059066,-62.7419)">
+    <rect
+       style="fill:#000080;stroke-width:0.265;stroke-dasharray:none"
+       id="rect1"
+       width="150"
+       height="200"
+       x="29.200514"
+       y="51.485126"
+       rx="10.2" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:47.7604px;font-family:'Eras Bold ITC';-inkscape-font-specification:'Eras Bold ITC';writing-mode:lr-tb;direction:ltr;fill:#ffffff;fill-opacity:1;stroke-width:0.896916;stroke-dasharray:none"
+       x="57.248383"
+       y="112.04042"
+       id="text12"><tspan
+         sodipodi:role="line"
+         id="tspan12"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:47.7604px;font-family:'Eras Bold ITC';-inkscape-font-specification:'Eras Bold ITC';fill:#ffffff;stroke-width:0.896919"
+         x="57.248383"
+         y="112.04042">TEd</tspan></text>
+    <g
+       id="buttons"
+       style="display:inline">
+      <g
+         id="circle"
+         transform="translate(0,10.758085)"
+         style="display:inline">
+        <circle
+           style="fill:#ffffff;stroke-width:0.318937;stroke-dasharray:none"
+           id="path12"
+           cx="103.73869"
+           cy="175.20309"
+           r="52.253559" />
+        <circle
+           style="fill:#000080;fill-opacity:1;stroke-width:0.218097;stroke-dasharray:none"
+           id="circle12"
+           cx="103.73869"
+           cy="175.20309"
+           r="35.732212" />
+      </g>
+      <g
+         id="play_pause"
+         style="display:inline"
+         transform="matrix(0.76307976,0,0,0.76307976,22.539021,43.794183)">
+        <path
+           sodipodi:type="star"
+           style="fill:#ffffff;stroke-width:0.264999"
+           id="path1"
+           inkscape:flatsided="false"
+           sodipodi:sides="3"
+           sodipodi:cx="91.443726"
+           sodipodi:cy="34.579559"
+           sodipodi:r1="26.666454"
+           sodipodi:r2="13.333227"
+           sodipodi:arg1="2.0943951"
+           sodipodi:arg2="3.1415927"
+           inkscape:rounded="0"
+           inkscape:randomized="0"
+           d="m 78.110498,57.673386 0,-23.093827 0,-23.093827 19.999842,11.546914 19.99984,11.546913 -19.999841,11.546914 z"
+           inkscape:transform-center-x="-4.6814902"
+           transform="matrix(0.70222919,0,0,0.70222919,26.716982,160.56501)"
+           inkscape:transform-center-y="4.0179917e-06" />
+        <g
+           id="g3"
+           inkscape:label="g3"
+           transform="translate(-1.152652)">
+          <rect
+             style="fill:#ffffff;stroke-width:0.264999"
+             id="rect2"
+             width="8.0685635"
+             height="32.274254"
+             x="112.95989"
+             y="168.6714" />
+          <rect
+             style="fill:#ffffff;stroke-width:0.264999"
+             id="rect3"
+             width="8.0685635"
+             height="32.274254"
+             x="124.4864"
+             y="168.6714" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
