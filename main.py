@@ -81,42 +81,43 @@ from ui.AlbumCreationDialog import Ui_AlbumCreationDialog
 from ui.EditTagsDialog import Ui_EditTagsDialog
 from ui.SetAllDialog import Ui_SetAllDialog
 
-class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
+class AlbumCreationDialog(QDialog):
     def __init__(self: AlbumCreationDialog, table_songs: list[Song], parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setupUi(self)
+        self.ui = Ui_AlbumCreationDialog()
+        self.ui.setupUi(self)
         self.setFixedSize(self.size())
 
         self.__table_songs = table_songs
 
-        self.cover_button.clicked.connect(self.cover_browse_clicked)
-        self.cover_button.setAutoDefault(True)
+        self.ui.cover_button.clicked.connect(self.cover_browse_clicked)
+        self.ui.cover_button.setAutoDefault(True)
 
-        self.clear_cover_button.clicked.connect(self.clear_cover_button_clicked)
-        self.clear_cover_button.setIcon(QIcon("./icons/delete.png")) # TODO
-        self.clear_cover_button.setAutoDefault(True)
+        self.ui.clear_cover_button.clicked.connect(self.clear_cover_button_clicked)
+        self.ui.clear_cover_button.setIcon(QIcon("./icons/delete.png")) # TODO
+        self.ui.clear_cover_button.setAutoDefault(True)
 
         if not self.__table_songs:
-            self.songs_button.clicked.connect(
+            self.ui.songs_button.clicked.connect(
                     lambda: self.songs_browse_clicked(False))
-            self.songs_button.setAutoDefault(True)
+            self.ui.songs_button.setAutoDefault(True)
         else:
             self.add_song_browse_button_menu()
 
-        self.button_box.accepted.connect(self.confirm_button_clicked)
-        self.button_box.rejected.connect(self.reject)
-        for button in self.button_box.buttons():
+        self.ui.button_box.accepted.connect(self.confirm_button_clicked)
+        self.ui.button_box.rejected.connect(self.reject)
+        for button in self.ui.button_box.buttons():
             if isinstance(button, QPushButton):
                 button.setAutoDefault(True)
 
-        self.year_edit.setValidator(QRegularExpressionValidator(
+        self.ui.year_edit.setValidator(QRegularExpressionValidator(
                                     QRegularExpression("[1-9][0-9]{3}")))
         self.selected_cover_path: Path | None
         self.__songs: list[Song] = []
 
     def add_song_browse_button_menu(self: AlbumCreationDialog) -> None:
         self.songs_menu = QMenu(self)
-        self.songs_button.setMenu(self.songs_menu)
+        self.ui.songs_button.setMenu(self.songs_menu)
         select_already_opened_songs_action = \
                         QAction("Select already opened songs", self.songs_menu)
         select_already_opened_songs_action.triggered.connect(
@@ -130,11 +131,11 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
 
     def clear_cover_button_clicked(self: AlbumCreationDialog) -> None:
         self.selected_cover_path = None
-        self.selected_cover_filename_label.setText("")
+        self.ui.selected_cover_filename_label.setText("")
 
     def set_cover_path(self: AlbumCreationDialog, path: Path) -> None:
         self.selected_cover_path = path
-        self.selected_cover_filename_label.setText(path.name)
+        self.ui.selected_cover_filename_label.setText(path.name)
 
     @property
     def songs(self: AlbumCreationDialog) -> list[Song]:
@@ -143,7 +144,7 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
     @songs.setter
     def songs(self: AlbumCreationDialog, songs: list[Song]) -> None:
         self.__songs = songs
-        self.selected_songs_filenames_label.setText(
+        self.ui.selected_songs_filenames_label.setText(
             ", ".join([x.updated_file_path().name for x in songs]))
 
     def get_new_songs(self: AlbumCreationDialog) -> list[Song]:
@@ -176,23 +177,23 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
 
 
     def confirm_button_clicked(self: AlbumCreationDialog) -> None:
-        if self.title_edit.displayText() == "":
-            self.status_bar.setText("Enter the album's title")
+        if self.ui.title_edit.displayText() == "":
+            self.ui.status_bar.setText("Enter the album's title")
             return
-        if self.artist_edit.displayText() == "":
-            self.status_bar.setText("Enter the artist's name")
+        if self.ui.artist_edit.displayText() == "":
+            self.ui.status_bar.setText("Enter the artist's name")
             return
-        if self.year_edit.displayText() == "":
-            self.status_bar.setText("Enter the album's release year")
+        if self.ui.year_edit.displayText() == "":
+            self.ui.status_bar.setText("Enter the album's release year")
             return
-        if not self.year_edit.hasAcceptableInput():
-            self.status_bar.setText("Enter a valid album release year "+
+        if not self.ui.year_edit.hasAcceptableInput():
+            self.ui.status_bar.setText("Enter a valid album release year "+
                                     "(a number between 1000 and 9999)")
             return
         if not self.songs:
-            self.status_bar.setText("Select songs for the album")
+            self.ui.status_bar.setText("Select songs for the album")
             return
-        self.status_bar.setText("")
+        self.ui.status_bar.setText("")
 
         cover_bytes = None
         if self.selected_cover_path:
@@ -201,9 +202,9 @@ class AlbumCreationDialog(QDialog, Ui_AlbumCreationDialog): # type: ignore
 
         for song in self.songs:
             song.new_cover = cover_bytes
-            song.album = self.title_edit.text()
-            song.artist = self.artist_edit.text()
-            song.year = int(self.year_edit.text())
+            song.album = self.ui.title_edit.text()
+            song.artist = self.ui.artist_edit.text()
+            song.year = int(self.ui.year_edit.text())
             song.update_crop_cover()
         self.accept()
 
@@ -910,11 +911,12 @@ class SongsTableModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self.__columns)
 
-class SetAllDialog(QDialog, Ui_SetAllDialog): # type: ignore
+class SetAllDialog(QDialog):
     Tags = Enum("Tags", ["TITLE", "ARTIST", "ALBUM", "ALBUM_ARTIST", "YEAR", "GENRE"])
     def __init__(self: SetAllDialog, year_validation_regex: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setupUi(self)
+        self.ui = Ui_SetAllDialog()
+        self.ui.setupUi(self)
         self.__tags: dict[str, SetAllDialog.Tags] = {
             "Title": self.Tags.TITLE,
             "Artist": self.Tags.ARTIST,
@@ -923,50 +925,51 @@ class SetAllDialog(QDialog, Ui_SetAllDialog): # type: ignore
             "Year": self.Tags.YEAR,
             "Genre": self.Tags.GENRE,
         }
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
-        self.tags_combobox.addItems(self.__tags.keys())
-        self.tags_combobox.currentTextChanged.connect(self.__combobox_changed)
+        self.ui.button_box.accepted.connect(self.accept)
+        self.ui.button_box.rejected.connect(self.reject)
+        self.ui.tags_combobox.addItems(self.__tags.keys())
+        self.ui.tags_combobox.currentTextChanged.connect(self.__combobox_changed)
         self.__year_validation_regex = year_validation_regex
         self.__validator_set = False
 
     def __combobox_changed(self: SetAllDialog, text: str) -> None:
         if text == "Year":
-            self.value_edit.setValidator(QRegularExpressionValidator(
+            self.ui.value_edit.setValidator(QRegularExpressionValidator(
                                         QRegularExpression(self.__year_validation_regex)))
-            if not self.value_edit.hasAcceptableInput():
-                self.value_edit.setText("")
+            if not self.ui.value_edit.hasAcceptableInput():
+                self.ui.value_edit.setText("")
             self.__validator_set = True
         elif self.__validator_set:
-            self.value_edit.setValidator(None)
+            self.ui.value_edit.setValidator(None)
             self.__validator_set = False
 
     def get_user_input(self: SetAllDialog) -> tuple[SetAllDialog.Tags, str]:
-        return self.__tags[self.tags_combobox.currentText()], self.value_edit.text()
+        return self.__tags[self.ui.tags_combobox.currentText()], self.ui.value_edit.text()
 
-class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
+class TableWindow(QMainWindow):
     def __init__(self: TableWindow) -> None:
         super().__init__()
-        self.setupUi(self)
-        self.centralwidget.destroy()
+        self.ui = Ui_TableWindow()
+        self.ui.setupUi(self)
+        self.ui.centralwidget.destroy()
         self.__songs_added = False
 
         self.setAcceptDrops(True)
 
-        self.action_new.triggered.connect(self.new_album_dialog)
-        self.action_save_all.triggered.connect(self.save_all)
-        self.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
-        self.action_save_all.setEnabled(False)
-        self.action_autofill_ta.setEnabled(False)
-        self.action_set_all.setEnabled(False)
-        self.action_open.triggered.connect(lambda: self.open(False))
-        self.action_open_from_cb.triggered.connect(lambda: self.open(True))
-        self.action_set_all.triggered.connect(self.set_all)
+        self.ui.action_new.triggered.connect(self.new_album_dialog)
+        self.ui.action_save_all.triggered.connect(self.save_all)
+        self.ui.action_autofill_ta.triggered.connect(self.autofill_titles_and_artists)
+        self.ui.action_save_all.setEnabled(False)
+        self.ui.action_autofill_ta.setEnabled(False)
+        self.ui.action_set_all.setEnabled(False)
+        self.ui.action_open.triggered.connect(lambda: self.open(False))
+        self.ui.action_open_from_cb.triggered.connect(lambda: self.open(True))
+        self.ui.action_set_all.triggered.connect(self.set_all)
         self.setup_table()
         if DEBUG:
-            self.menuFile.addSeparator()
+            self.ui.menuFile.addSeparator()
             self.action_debug = QAction("Debug", self)
-            self.menuFile.addAction(self.action_debug)
+            self.ui.menuFile.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
             self.style_counter = 0
@@ -1116,9 +1119,9 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
 
     def update_table(self: TableWindow, empty_table: bool):
         if empty_table:
-            self.action_save_all.setEnabled(False)
-            self.action_autofill_ta.setEnabled(False)
-            self.action_set_all.setEnabled(False)
+            self.ui.action_save_all.setEnabled(False)
+            self.ui.action_autofill_ta.setEnabled(False)
+            self.ui.action_set_all.setEnabled(False)
         self.view.resizeColumnsToContents()
 
     def open(self: TableWindow, from_cb: bool) -> None:
@@ -1149,16 +1152,16 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
             if not self.model.songs[i].edited: continue
             nothing_to_save = False
             this_new_path = self.model.songs[i].updated_file_path()
-            self.status_bar.showMessage(f"Saving \"{this_new_path}\"")
+            self.ui.status_bar.showMessage(f"Saving \"{this_new_path}\"")
             if not self.model.songs[i].save(): failed.append(this_new_path)
         time = 5000
         if nothing_to_save:
-            return self.status_bar.showMessage("Nothing to save", time)
+            return self.ui.status_bar.showMessage("Nothing to save", time)
         message = "Finished Saving"
         if failed:
             message += " (could not save: \""+", ".join(failed)+"\")"
             time *= 2
-        self.status_bar.showMessage(message, time)
+        self.ui.status_bar.showMessage(message, time)
 
     def closeEvent(self: TableWindow, a0: QCloseEvent | None) -> None:
         if not a0: return
@@ -1180,7 +1183,7 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
         if res == QDialog.DialogCode.Accepted:
             self.add_songs(self.album_creation_dialog.get_new_songs())
         else:
-            self.action_new.setEnabled(True)
+            self.ui.action_new.setEnabled(True)
 
     def all_tags_button_clicked(self: TableWindow, index: QModelIndex) -> None:
         if index.model() is self.proxy: index = self.proxy.mapToSource(index)
@@ -1196,9 +1199,9 @@ class TableWindow(QMainWindow, Ui_TableWindow): # type: ignore
         self.model.add_songs(songs)
         self.view.resizeColumnsToContents()
 
-        self.action_save_all.setEnabled(True)
-        self.action_autofill_ta.setEnabled(True)
-        self.action_set_all.setEnabled(True)
+        self.ui.action_save_all.setEnabled(True)
+        self.ui.action_autofill_ta.setEnabled(True)
+        self.ui.action_set_all.setEnabled(True)
         self.__songs_added = True
 
 class TableViewWithContextMenu(QTableView):
@@ -1350,37 +1353,38 @@ class NonEmptyLineEditFilter(QObject):
             obj.setText(self.__initial_text)
         return res
 
-class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
+class EditTagsDialog(QDialog):
     CoverImageStates = Enum("CoverImageStates", ["SELECTED", "EMBEDDED", "NONE"])
 
     def __init__(self: EditTagsDialog, songs: list[Song], index: int, year_validation_regex: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setupUi(self)
+        self.ui = Ui_EditTagsDialog()
+        self.ui.setupUi(self)
         self.setFixedSize(self.size())
         self.songs = songs
         self.index = index
         self.song: Song = self.songs[self.index]
 
-        self.year_edit.setValidator(QRegularExpressionValidator(
+        self.ui.year_edit.setValidator(QRegularExpressionValidator(
                                     QRegularExpression(year_validation_regex)))
-        self.button_box.accepted.connect(self.confirm)
-        self.button_box.rejected.connect(self.close)
-        self.tabs.setCurrentIndex(0)
+        self.ui.button_box.accepted.connect(self.confirm)
+        self.ui.button_box.rejected.connect(self.close)
+        self.ui.tabs.setCurrentIndex(0)
 
         self.new_cover: bytes | None = self.song.new_cover
         self.__cover:   bytes | None = self.song.cover
 
         # Fill title and artist based on file name
-        self.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
+        self.ui.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
 
         self.fill_in_fields_from_song()
         self.filter = NonEmptyLineEditFilter(self.song.file_name)
-        self.file_name_edit.installEventFilter(self.filter)
+        self.ui.file_name_edit.installEventFilter(self.filter)
         self.display_cover()
 
         # Change Cover Button
         self.cover_menu = QMenu(self)
-        self.change_cover_button.setMenu(self.cover_menu)
+        self.ui.change_cover_button.setMenu(self.cover_menu)
 
         self.show_cover_full_size_action = QAction("Show full size", self.cover_menu)
         self.show_cover_full_size_action.triggered.connect(self.show_cover_full_size)
@@ -1404,7 +1408,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
 
         # Copy Tags From Another File
         self.copy_from_another_file_menu = QMenu(self)
-        self.copy_from_another_file_button.setMenu(self.copy_from_another_file_menu)
+        self.ui.copy_from_another_file_button.setMenu(self.copy_from_another_file_menu)
 
 
         self.copy_from_another_file_menu.addAction(
@@ -1414,11 +1418,11 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
                 QIcon(), "Browse for file", lambda: self.open_copy_tags_dialog(False),
                 Qt.ConnectionType.AutoConnection)
 
-        self.preserve_file_time_checkbox.setChecked(self.song.preserve_file_time)
-        self.remove_other_tags_checkbox.setChecked(self.song.remove_other_tags)
-        self.crop_cover_checkbox.setChecked(self.song.crop_cover_to_square)
+        self.ui.preserve_file_time_checkbox.setChecked(self.song.preserve_file_time)
+        self.ui.remove_other_tags_checkbox.setChecked(self.song.remove_other_tags)
+        self.ui.crop_cover_checkbox.setChecked(self.song.crop_cover_to_square)
 
-        self.music_list.hide()
+        self.ui.music_list.hide()
 
     @property
     def cover(self: EditTagsDialog) -> bytes | None:
@@ -1448,19 +1452,19 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.copy_tags_from_song(selected_song)
 
     def copy_tags_from_song(self: EditTagsDialog, selected_song: Song) -> None:
-        self.title_edit.setText(selected_song.title)
-        self.artist_edit.setText(selected_song.artist)
-        self.album_edit.setText(selected_song.album)
-        self.album_artist_edit.setText(selected_song.album_artist)
-        self.genre_edit.setText(selected_song.genre)
-        self.lyrics_edit.setPlainText(selected_song.lyrics)
-        self.track_count_spinbox.setValue(selected_song.track_num[0])
-        self.track_total_spinbox.setValue(selected_song.track_num[1])
-        self.disc_count_spinbox.setValue(selected_song.disc_num[0])
-        self.disc_total_spinbox.setValue(selected_song.disc_num[1])
+        self.ui.title_edit.setText(selected_song.title)
+        self.ui.artist_edit.setText(selected_song.artist)
+        self.ui.album_edit.setText(selected_song.album)
+        self.ui.album_artist_edit.setText(selected_song.album_artist)
+        self.ui.genre_edit.setText(selected_song.genre)
+        self.ui.lyrics_edit.setPlainText(selected_song.lyrics)
+        self.ui.track_count_spinbox.setValue(selected_song.track_num[0])
+        self.ui.track_total_spinbox.setValue(selected_song.track_num[1])
+        self.ui.disc_count_spinbox.setValue(selected_song.disc_num[0])
+        self.ui.disc_total_spinbox.setValue(selected_song.disc_num[1])
         year = str(selected_song.year)
         if year == "0": year = ""
-        self.year_edit.setText(year)
+        self.ui.year_edit.setText(year)
 
     def copy_cover(self: EditTagsDialog) -> None:
         selected_path = self.open_file_dialog("*.mp3")
@@ -1471,7 +1475,7 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.update_cover_display()
 
     def update_cover_display(self: EditTagsDialog) -> None:
-        self.cover_label.clear()
+        self.ui.cover_label.clear()
         self.display_cover()
         self.update_cover_related_controls()
 
@@ -1495,34 +1499,34 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
         self.update_cover_display()
 
     def confirm(self: EditTagsDialog) -> None:
-        self.song.title = self.title_edit.text()
-        self.song.artist = self.artist_edit.text()
-        self.song.album = self.album_edit.text()
-        self.song.album_artist = self.album_artist_edit.text()
-        self.song.genre = self.genre_edit.text()
-        self.song.file_name = self.file_name_edit.text()
-        self.song.lyrics = self.lyrics_edit.toPlainText()
+        self.song.title = self.ui.title_edit.text()
+        self.song.artist = self.ui.artist_edit.text()
+        self.song.album = self.ui.album_edit.text()
+        self.song.album_artist = self.ui.album_artist_edit.text()
+        self.song.genre = self.ui.genre_edit.text()
+        self.song.file_name = self.ui.file_name_edit.text()
+        self.song.lyrics = self.ui.lyrics_edit.toPlainText()
 
-        year_edit = self.year_edit.text()
+        year_edit = self.ui.year_edit.text()
         self.song.year = int(year_edit) if year_edit != "" else 0
 
-        self.song.track_num = (self.track_count_spinbox.value(), self.track_total_spinbox.value())
-        self.song.disc_num = (self.disc_count_spinbox.value(), self.disc_total_spinbox.value())
+        self.song.track_num = (self.ui.track_count_spinbox.value(), self.ui.track_total_spinbox.value())
+        self.song.disc_num = (self.ui.disc_count_spinbox.value(), self.ui.disc_total_spinbox.value())
 
         self.song.new_cover = self.new_cover
         if not self.cover and self.song.cover: self.song.remove_covers()
 
-        self.song.remove_other_tags = self.remove_other_tags_checkbox.isChecked()
-        self.song.preserve_file_time = self.preserve_file_time_checkbox.isChecked()
-        self.song.crop_cover_to_square = self.crop_cover_checkbox.isChecked()
+        self.song.remove_other_tags = self.ui.remove_other_tags_checkbox.isChecked()
+        self.song.preserve_file_time = self.ui.preserve_file_time_checkbox.isChecked()
+        self.song.crop_cover_to_square = self.ui.crop_cover_checkbox.isChecked()
 
         self.close()
 
     def autofill_title_and_artist(self: EditTagsDialog):
         res = self.song.get_title_and_artist_by_file_name() # Better error
         if not res: return
-        self.artist_edit.setText(res[0])
-        self.title_edit.setText(res[1])
+        self.ui.artist_edit.setText(res[0])
+        self.ui.title_edit.setText(res[1])
 
     def which_cover_to_use(self: EditTagsDialog) -> EditTagsDialog.CoverImageStates:
         if self.new_cover: return self.CoverImageStates.SELECTED
@@ -1548,19 +1552,19 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
 
         if not image_data:
             self.show_cover_full_size_action.setEnabled(False)
-            self.crop_cover_checkbox.setEnabled(False)
-            self.crop_cover_checkbox.setChecked(False)
+            self.ui.crop_cover_checkbox.setEnabled(False)
+            self.ui.crop_cover_checkbox.setChecked(False)
             return
         if not self.show_cover_full_size_action.isEnabled():
             self.show_cover_full_size_action.setEnabled(True)
 
         image_editor = ImageEditor(image_data)
         if image_editor.image_is_square():
-            self.crop_cover_checkbox.setEnabled(False)
-            self.crop_cover_checkbox.setChecked(False)
+            self.ui.crop_cover_checkbox.setEnabled(False)
+            self.ui.crop_cover_checkbox.setChecked(False)
         else:
-            self.crop_cover_checkbox.setEnabled(True)
-            self.crop_cover_checkbox.setChecked(True)
+            self.ui.crop_cover_checkbox.setEnabled(True)
+            self.ui.crop_cover_checkbox.setChecked(True)
 
     def show_cover_full_size(self: EditTagsDialog) -> None:
         which = self.which_cover_to_use()
@@ -1576,8 +1580,8 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
     def display_cover(self: EditTagsDialog) -> None:
         which = self.which_cover_to_use()
         if which == self.CoverImageStates.NONE:
-            if not self.cover_label.pixmap(): return
-            self.cover_label.clear()
+            if not self.ui.cover_label.pixmap(): return
+            self.ui.cover_label.clear()
             return
         pixmap = QPixmap()
         if which == self.CoverImageStates.SELECTED:
@@ -1586,22 +1590,22 @@ class EditTagsDialog(QDialog, Ui_EditTagsDialog): # type: ignore
             pixmap.loadFromData(self.cover) # type: ignore
 
         scaled_pixmap = pixmap.scaledToWidth(
-                self.cover_label.width(), Qt.TransformationMode.SmoothTransformation)
-        self.cover_label.setPixmap(scaled_pixmap)
+                self.ui.cover_label.width(), Qt.TransformationMode.SmoothTransformation)
+        self.ui.cover_label.setPixmap(scaled_pixmap)
         # self.cover_label.adjustSize()
 
     def fill_in_fields_from_song(self: EditTagsDialog):
-        self.title_edit.setText(self.song.title)
-        self.artist_edit.setText(self.song.artist)
-        self.album_edit.setText(self.song.album)
-        self.album_artist_edit.setText(self.song.album_artist)
-        self.genre_edit.setText(self.song.genre)
-        self.track_count_spinbox.setValue(self.song.track_num[0])
-        self.disc_count_spinbox.setValue(self.song.disc_num[0])
+        self.ui.title_edit.setText(self.song.title)
+        self.ui.artist_edit.setText(self.song.artist)
+        self.ui.album_edit.setText(self.song.album)
+        self.ui.album_artist_edit.setText(self.song.album_artist)
+        self.ui.genre_edit.setText(self.song.genre)
+        self.ui.track_count_spinbox.setValue(self.song.track_num[0])
+        self.ui.disc_count_spinbox.setValue(self.song.disc_num[0])
         year = self.song.year
-        if year: self.year_edit.setText(str(year))
-        self.file_name_edit.setText(self.song.file_name)
-        self.lyrics_edit.setPlainText(self.song.lyrics)
+        if year: self.ui.year_edit.setText(str(year))
+        self.ui.file_name_edit.setText(self.song.file_name)
+        self.ui.lyrics_edit.setPlainText(self.song.lyrics)
 
 if __name__ == "__main__":
     if not DEBUG:
