@@ -2,6 +2,7 @@ import sys
 import subprocess
 from shutil import which, rmtree
 from config import (
+    PLATFORM,
     ROOT_PATH,
     ENTRY_POINT_PATH,
     APP_ICON_FILE_PATH,
@@ -98,7 +99,7 @@ if __name__ == "__main__":
         case "build":
             check_if_its_installed("pyinstaller")
             cleanup_previous_builds()
-            if sys.platform != "win32":
+            if PLATFORM != "win32":
                 error("building on your platform is not supported.")
             build()
         case "run" | "debug":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import sys
 from PIL import Image
 from io import BytesIO
@@ -66,7 +67,7 @@ from ui.generated.TableWindow import Ui_TableWindow
 from ui.generated.AlbumCreationDialog import Ui_AlbumCreationDialog
 from ui.generated.EditTagsDialog import Ui_EditTagsDialog
 from ui.generated.SetAllDialog import Ui_SetAllDialog
-from config import DISCARD_ICON_PATH, SVG_LOGO_FILE_PATH
+from config import DISCARD_ICON_PATH, SVG_LOGO_FILE_PATH, PLATFORM
 
 DEBUG = False
 if len(sys.argv) > 1:
@@ -781,6 +782,7 @@ class SongsTableModel(QAbstractTableModel):
             "All Tags",
             "File Name",
         ]
+        self.file_name_validator = FileNameValidator()
 
     @property
     def columns(self: SongsTableModel) -> list[str]:
@@ -873,7 +875,8 @@ class SongsTableModel(QAbstractTableModel):
                     if not value.isdigit(): return False
                     song.year = int(value)
             case 'File Name':
-                if value == "": return False
+                if not self.file_name_validator.is_file_name_valid(value):
+                    return False
                 song.file_name = value
             case _:
                 return False
@@ -1325,13 +1328,41 @@ class ImageEditor:
         self.__image.save(output_bytes, format="JPEG", quality=95)
         return output_bytes.getvalue()
 
-class NonEmptyLineEditFilter(QObject):
-    def __init__(self: NonEmptyLineEditFilter, initial_text: str,
+class FileNameValidator:
+    def __is_file_name_valid_posix(self: FileNameValidator, file_name: str) -> bool:
+        return bool(file_name) and "/" not in file_name and "\x00" not in file_name
+
+    def __is_file_name_valid_windows(self: FileNameValidator, file_name: str) -> bool:
+        illegal_chars = r'[<>:"/\\|?*\x00-\x1f]'
+        reserved_names = {
+            "CON", "PRN", "AUX", "NUL",
+            *(f"COM{i}" for i in range(1, 10)),
+            *(f"LPT{i}" for i in range(1, 10)),
+        }
+        if not file_name or file_name != file_name.strip(" ."):
+            return False  # can't be empty, or start/end with space or dot (Windows)
+        if re.search(illegal_chars, file_name):
+            return False
+        if file_name.upper().split(".")[0] in reserved_names:
+            return False
+        if len(file_name) > 255:
+            return False
+        return True
+
+    def is_file_name_valid(self: FileNameValidator, file_name: str) -> bool:
+        func = self.__is_file_name_valid_posix
+        if PLATFORM == "win32":
+            func = self.__is_file_name_valid_windows
+        return func(file_name)
+
+class FileNameLineEditFilter(QObject):
+    def __init__(self: FileNameLineEditFilter, initial_text: str,
                                          parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.__initial_text = initial_text
+        self.file_name_validator = FileNameValidator()
 
-    def eventFilter(self: NonEmptyLineEditFilter, a0: QObject | None,
+    def eventFilter(self: FileNameLineEditFilter, a0: QObject | None,
                                                      a1: QEvent | None) -> bool:
         res = super().eventFilter(a0, a1)
         obj: QLineEdit = a0 # type: ignore
@@ -1341,7 +1372,7 @@ class NonEmptyLineEditFilter(QObject):
             return res
 
         text = obj.text()
-        if not text:
+        if not self.file_name_validator.is_file_name_valid(text):
             obj.setText(self.__initial_text)
         return res
 
@@ -1370,7 +1401,7 @@ class EditTagsDialog(QDialog):
         self.ui.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
 
         self.fill_in_fields_from_song()
-        self.filter = NonEmptyLineEditFilter(self.song.file_name)
+        self.filter = FileNameLineEditFilter(self.song.file_name)
         self.ui.file_name_edit.installEventFilter(self.filter)
         self.display_cover()
 

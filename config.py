@@ -6,6 +6,8 @@ ROOT_PATH = Path(__file__).resolve().parent
 if hasattr(sys, "_MEIPASS"):
     ROOT_PATH = Path(sys._MEIPASS).resolve()
 
+PLATFORM = sys.platform
+
 ENTRY_POINT_PATH = ROOT_PATH / "main.py"
 ICONS_DIR_PATH = ROOT_PATH / "icons"
 DISCARD_ICON_PATH = ICONS_DIR_PATH / "discard-22.png"
