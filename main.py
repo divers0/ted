@@ -644,8 +644,8 @@ class Song(QObject):
     def remove_covers(self: Song) -> None:
         self.__tag.remove_covers()
 
-    def get_title_and_artist_by_file_name(self: Song) -> tuple[str, str] | None:
-        file_name = os.path.splitext(self.file_name)[0]
+    def get_title_and_artist_by_file_name(self: Song, file_name: str) -> tuple[str, str] | None:
+        file_name = os.path.splitext(file_name)[0]
         # TODO: might want to add regex validation
         splitted_file_name = file_name.split(' - ')
         parts_n = len(splitted_file_name)
@@ -1165,7 +1165,9 @@ class TableWindow(QMainWindow):
 
     def autofill_titles_and_artists(self: TableWindow) -> None:
         for i in range(len(self.model.songs)):
-            res = self.model.songs[i].get_title_and_artist_by_file_name()
+            res = self.model.songs[i].get_title_and_artist_by_file_name(
+                self.model.songs[i].file_name
+            )
             if not res: return # TODO: Better error
             self.model.songs[i].artist = res[0]
             self.model.songs[i].title = res[1]
@@ -1546,7 +1548,7 @@ class EditTagsDialog(QDialog):
         self.close()
 
     def autofill_title_and_artist(self: EditTagsDialog):
-        res = self.song.get_title_and_artist_by_file_name() # Better error
+        res = self.song.get_title_and_artist_by_file_name(self.ui.file_name_edit.text()) # Better error
         if not res: return
         self.ui.artist_edit.setText(res[0])
         self.ui.title_edit.setText(res[1])
