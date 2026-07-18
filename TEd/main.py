@@ -42,6 +42,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QApplication,
     QDialogButtonBox,
+    QHeaderView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -1105,6 +1106,14 @@ class TableWindow(QMainWindow):
         self.view.setSortingEnabled(True)
         self.setCentralWidget(self.view)
 
+        header: QHeaderView = self.view.horizontalHeader() # type: ignore
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        for col in (self.model.columns.index("Track #"),
+                    self.model.columns.index("Year"),
+                    self.model.columns.index("All Tags")):
+            header.setSectionResizeMode(col,
+                                        QHeaderView.ResizeMode.ResizeToContents)
+
         self.year_line_edit_delegate = YearLineEditDelegate()
         self.view.setItemDelegateForColumn(self.model.columns.index("Year"), self.year_line_edit_delegate)
 
@@ -1126,7 +1135,6 @@ class TableWindow(QMainWindow):
             self.ui.action_save_all.setEnabled(False)
             self.ui.action_autofill_ta.setEnabled(False)
             self.ui.action_set_all.setEnabled(False)
-        self.view.resizeColumnsToContents()
 
     def open(self: TableWindow) -> None:
         paths = QFileDialog.getOpenFileNames(
@@ -1193,7 +1201,6 @@ class TableWindow(QMainWindow):
         already_added_paths = [x.file_path for x in self.model.songs]
         songs = [x for x in songs if x.file_path not in already_added_paths]
         self.model.add_songs(songs)
-        self.view.resizeColumnsToContents()
 
         self.ui.action_save_all.setEnabled(True)
         self.ui.action_autofill_ta.setEnabled(True)
