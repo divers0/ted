@@ -1,0 +1,12 @@
+altgraph==0.17.5
+mutagen==1.48.1
+packaging==26.2
+pefile==2024.8.26
+pillow==12.3.0
+pyinstaller==6.21.0
+pyinstaller-hooks-contrib==2026.6
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.1
+PyQt6_sip==13.11.1
+pywin32-ctypes==0.2.3
+setuptools==83.0.0

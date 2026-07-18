@@ -63,15 +63,16 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
 )
 
-from ui.generated.TableWindow import Ui_TableWindow
-from ui.generated.AlbumCreationDialog import Ui_AlbumCreationDialog
-from ui.generated.EditTagsDialog import Ui_EditTagsDialog
-from ui.generated.SetAllDialog import Ui_SetAllDialog
-from config import DISCARD_ICON_PATH, SVG_LOGO_FILE_PATH, PLATFORM
+from .ui.TableWindow import Ui_TableWindow
+from .ui.AlbumCreationDialog import Ui_AlbumCreationDialog
+from .ui.EditTagsDialog import Ui_EditTagsDialog
+from .ui.SetAllDialog import Ui_SetAllDialog
+from .config import DISCARD_ICON_PATH, SVG_LOGO_FILE_PATH, PLATFORM
 
 DEBUG = False
 if len(sys.argv) > 1:
-    if sys.argv[1] == "--debug":
+    debug_place_idx = 1 if Path(sys.argv[0]).name != "bootstrap.py" or len(sys.argv) == 2 else 2
+    if sys.argv[debug_place_idx] in ("debug", "--debug"):
         DEBUG = True
 
 class AlbumCreationDialog(QDialog):
@@ -1632,7 +1633,7 @@ class EditTagsDialog(QDialog):
         self.ui.file_name_edit.setText(self.song.file_name)
         self.ui.lyrics_edit.setPlainText(self.song.lyrics)
 
-if __name__ == "__main__":
+def main() -> int:
     if not DEBUG:
         def custom_message_handler(_, __, ___): return
         qInstallMessageHandler(custom_message_handler)
@@ -1640,4 +1641,4 @@ if __name__ == "__main__":
     table_window = TableWindow()
     table_window.show()
 
-    sys.exit(app.exec())
+    return app.exec()
