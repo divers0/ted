@@ -311,8 +311,6 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>music_list</tabstop>
-  <tabstop>tabs</tabstop>
   <tabstop>file_name_edit</tabstop>
   <tabstop>change_cover_button</tabstop>
   <tabstop>title_edit</tabstop>
@@ -330,6 +328,8 @@
   <tabstop>preserve_file_time_checkbox</tabstop>
   <tabstop>fill_ta_button</tabstop>
   <tabstop>copy_from_another_file_button</tabstop>
+  <tabstop>music_list</tabstop>
+  <tabstop>tabs</tabstop>
   <tabstop>lyrics_edit</tabstop>
  </tabstops>
  <resources/>

@@ -629,6 +629,7 @@ class Song(QObject):
     def __rename(self: Song) -> bool:
         if not self.__file_name.endswith(".mp3"):
             print(f"Error: {self.__file_name} is not a valid mp3 file name")
+            return False
         new_path = self.updated_file_path()
         if new_path.exists():
             print(f"Error {self.__file_name}: path already exists") # TODO: BETTER ERROR
