@@ -266,7 +266,7 @@
              <item row="1" column="0">
               <widget class="QCheckBox" name="preserve_file_time_checkbox">
                <property name="text">
-                <string>Preserve the file's date</string>
+                <string>Preserve the file's timestamp</string>
                </property>
                <property name="checked">
                 <bool>true</bool>

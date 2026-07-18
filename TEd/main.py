@@ -620,7 +620,7 @@ class Song(QObject):
 
         self.__tag.id3.save(self.__file_path)
         if self.__preserve_file_time:
-            os.utime(self.__file_path, self.__time)
+            os.utime(self.__file_path, ns=self.__time)
 
         if self.__file_name != self.__file_path.name:
             return self.__rename()
@@ -636,7 +636,7 @@ class Song(QObject):
         try:
             self.__file_path =  self.__file_path.rename(new_path)
             if self.__preserve_file_time:
-                os.utime(new_path, self.__time)
+                os.utime(new_path, ns=self.__time)
         except Exception as e:
             print(f"Error {self.__file_name}: {e}")
             return False
