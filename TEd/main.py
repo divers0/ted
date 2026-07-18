@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 from mutagen.id3 import ID3
 from mutagen.id3._frames import (
@@ -459,6 +459,9 @@ class Tag:
         fid = self.__frames[name+"_num"][0]
         if fid not in self.id3: return (0, 0)
         frame_data = self.id3[fid][0]
+        if frame_data == '':
+            self.__remove_frame_by_fid(fid)
+            return (0, 0)
         count = total = 0
         if "/" in frame_data:
             try:
@@ -466,10 +469,18 @@ class Tag:
             except Exception as e:
                 print(f"Could not get {name} number for {self.id3.filename}: {e}")
                 return (0, 0)
-            count = int(count)
-            total = int(total)
+            try:
+                count = int(count)
+                total = int(total)
+            except ValueError:
+                self.__remove_frame_by_fid(fid)
+                return (0, 0)
         else:
-            count = int(frame_data)
+            try:
+                count = int(frame_data)
+            except ValueError:
+                self.__remove_frame_by_fid(fid)
+                return (0, 0)
         return (count, total)
 
     def __init_year(self: Tag) -> int:
@@ -528,9 +539,15 @@ class Song(QObject):
 
     def update_crop_cover(self: Song) -> None:
         if self.__new_cover:
-            self.__crop_cover_to_square = not ImageEditor(self.__new_cover).image_is_square()
+            cover = self.__new_cover
         elif self.cover:
-            self.__crop_cover_to_square = not ImageEditor(self.cover).image_is_square()
+            cover = self.cover
+        else: return
+        image_editor = ImageEditor(cover)
+        if not image_editor.is_image():
+            self.remove_covers()
+            return
+        self.__crop_cover_to_square = not image_editor.image_is_square()
 
     @property
     def crop_cover_to_square(self: Song) -> bool:
@@ -1317,11 +1334,19 @@ class ImageViewer(QWidget):
 class ImageEditor:
     def __init__(self: ImageEditor, data: bytes) -> None:
         self.__data = data
-        self.__image = Image.open(BytesIO(data))
+        try:
+            self.__image = Image.open(BytesIO(data))
+        except UnidentifiedImageError:
+            self.__image = None
+        if not self.__image: return
         if self.__image.format not in ("JPEG", "PNG"):
             raise ValueError(f"Expected JPEG/PNG format, got {self.__image.format}")
 
+    def is_image(self: ImageEditor) -> bool:
+        return self.__image is not None
+
     def image_is_square(self: ImageEditor) -> bool:
+        assert(bool(self.__image))
         return self.__image.width == self.__image.height
 
     @property
