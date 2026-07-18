@@ -1,5 +1,4 @@
-# <img src="./TEd/icons/logo/TEd.png" alt="logo" width="3%"/> TEd
-
+# <img src="./TEd/icons/logo/TEd.svg" alt="logo" width="3%"/> TEd
 A fast and simple GUI-based MP3 tag editor for Windows and Linux
 
 ## Why?
