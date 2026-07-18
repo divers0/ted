@@ -958,14 +958,21 @@ class TableWindow(QMainWindow):
         self.ui.action_save_all.setEnabled(False)
         self.ui.action_autofill_ta.setEnabled(False)
         self.ui.action_set_all.setEnabled(False)
-        self.ui.action_open.triggered.connect(lambda: self.open(False))
-        self.ui.action_open_from_cb.triggered.connect(lambda: self.open(True))
+        self.ui.action_open.triggered.connect(self.open)
         self.ui.action_set_all.triggered.connect(self.set_all)
+
+        self.action_paste = QAction("Paste", self)
+        self.action_paste.setPriority(QAction.Priority.LowPriority)
+        self.action_paste.setShortcut(QKeySequence.StandardKey.Paste)
+        self.action_paste.triggered.connect(self.paste)
+        self.ui.menu_file.insertAction(self.ui.action_save_all, self.action_paste)
+        self.ui.menu_file.insertSeparator(self.ui.action_save_all)
+
         self.setup_table()
         if DEBUG:
-            self.ui.menuFile.addSeparator()
+            self.ui.menu_file.addSeparator()
             self.action_debug = QAction("Debug", self)
-            self.ui.menuFile.addAction(self.action_debug)
+            self.ui.menu_file.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
             self.style_counter = 0
@@ -1016,10 +1023,16 @@ class TableWindow(QMainWindow):
         if not cb: return
         mime_data = cb.mimeData()
         if not mime_data: return
-        if not mime_data.hasUrls(): return
-        all_paths = [Path(url.toLocalFile()) for url in mime_data.urls()]
-        mp3_paths = [path for path in all_paths 
-                     if path.suffix.lower() == ".mp3" and path.is_file()]
+        if mime_data.hasUrls():
+            all_paths = [Path(url.toLocalFile()) for url in mime_data.urls()]
+            mp3_paths = [path for path in all_paths
+                         if path.suffix.lower() == ".mp3" and path.is_file()]
+        else:
+            cb_contents = cb.text()
+            if cb_contents == "": return
+            raw_paths = cb_contents.strip().split(os.linesep)
+            mp3_paths = [path for path in raw_paths
+                    if os.path.isfile(path) and path.lower().endswith(".mp3")]
         songs = []
         for path in mp3_paths:
             song = Song(Path(path))
@@ -1084,12 +1097,6 @@ class TableWindow(QMainWindow):
         self.proxy = QSortFilterProxyModel()
         self.proxy.setSourceModel(self.model)
 
-        self.action_paste = QAction("Paste", self)
-        self.action_paste.setPriority(QAction.Priority.LowPriority)
-        self.action_paste.setShortcut(QKeySequence.StandardKey.Paste)
-        self.action_paste.triggered.connect(self.paste)
-        self.addAction(self.action_paste)
-
         self.view = TableViewWithContextMenu()
         self.view.removeRows.connect(lambda row: self.remove_rows(row))
 
@@ -1120,19 +1127,9 @@ class TableWindow(QMainWindow):
             self.ui.action_set_all.setEnabled(False)
         self.view.resizeColumnsToContents()
 
-    def open(self: TableWindow, from_cb: bool) -> None:
-        paths = []
-        if from_cb:
-            cb = QApplication.clipboard()
-            if not cb: return
-            cb_contents = cb.text()
-            if cb_contents == "": return
-            raw_paths = cb_contents.strip().split(os.linesep)
-            paths = [path for path in raw_paths
-                    if os.path.isfile(path) and path.lower().endswith(".mp3")]
-        else:
-            paths = QFileDialog.getOpenFileNames(
-                self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
+    def open(self: TableWindow) -> None:
+        paths = QFileDialog.getOpenFileNames(
+            self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
         if not paths: return # TODO: might want to tell the user what happened
         songs = []
         for path in paths:
