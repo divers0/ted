@@ -17,6 +17,7 @@ from PyQt6.QtCore import (
     QAbstractItemModel,
     QEvent,
     QRegularExpression,
+    QSize,
     Qt,
     QModelIndex,
     QObject,
@@ -51,6 +52,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPushButton,
     QFileDialog,
+    QSizePolicy,
     QSpinBox,
     QStyle,
     QStyleFactory,
@@ -966,7 +968,6 @@ class TableWindow(QMainWindow):
         self.ui = Ui_TableWindow()
         self.ui.setupUi(self)
         self.setWindowIcon(QIcon(str(SVG_LOGO_FILE_PATH)))
-        self.ui.centralwidget.destroy()
         self.__songs_added = False
 
         self.setAcceptDrops(True)
@@ -987,7 +988,24 @@ class TableWindow(QMainWindow):
         self.ui.menu_file.insertAction(self.ui.action_save_all, self.action_paste)
         self.ui.menu_file.insertSeparator(self.ui.action_save_all)
 
+        self.search_bar = QLineEdit(self)
+        self.search_bar.setPlaceholderText("Search...")
+        self.search_bar.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Fixed,
+                                                  QSizePolicy.Policy.Preferred))
+        set_focus_to_search_bar = QAction(self)
+        set_focus_to_search_bar.setShortcut(QKeySequence("Ctrl+F"))
+        set_focus_to_search_bar.triggered.connect(self.search_bar.setFocus)
+        self.addAction(set_focus_to_search_bar)
+        self.central_widget_layout = QVBoxLayout()
+        self.search_bar.setMinimumSize(QSize(300, 0))
+        self.central_widget_layout.addWidget(self.search_bar, 0,
+                                             Qt.AlignmentFlag.AlignRight)
+        central_widget = self.centralWidget()
+        assert central_widget
+        central_widget.setLayout(self.central_widget_layout)
         self.setup_table()
+        self.view.setFocus()
+
         if DEBUG:
             self.ui.menu_file.addSeparator()
             self.action_debug = QAction("Debug", self)
@@ -1123,7 +1141,13 @@ class TableWindow(QMainWindow):
 
         self.view.setModel(self.proxy)
         self.view.setSortingEnabled(True)
-        self.setCentralWidget(self.view)
+
+        # Search bar
+        self.proxy.setFilterKeyColumn(-1)
+        self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.search_bar.textChanged.connect(self.proxy.setFilterFixedString)
+
+        self.central_widget_layout.addWidget(self.view)
 
         header: QHeaderView = self.view.horizontalHeader() # type: ignore
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -1350,7 +1374,7 @@ class ImageEditor:
         return self.__image is not None
 
     def image_is_square(self: ImageEditor) -> bool:
-        assert(bool(self.__image))
+        assert bool(self.__image)
         return self.__image.width == self.__image.height
 
     @property
@@ -1358,7 +1382,7 @@ class ImageEditor:
         return self.__data
 
     def crop_to_center_square(self: ImageEditor) -> bytes:
-        assert(self.__image)
+        assert self.__image
         width, height = self.__image.size
         x = (width-height)/2
         self.__image = self.__image.crop((x, 0, x+height, height))
