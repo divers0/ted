@@ -813,10 +813,10 @@ class SongsTableModel(QAbstractTableModel):
         return self.__songs
 
     def remove_rows(self: SongsTableModel, rows: list[int]) -> None:
-        rows = sorted(rows)
-        self.beginRemoveRows(QModelIndex(), rows[0], rows[-1])
-        self.__songs = [self.__songs[i] for i in range(len(self.__songs)) if i not in rows]
-        self.endRemoveRows()
+        for row in sorted(rows, reverse=True):
+            self.beginRemoveRows(QModelIndex(), row, row)
+            del self.__songs[row]
+            self.endRemoveRows()
         if not self.__songs: self.tableChanged.emit(True)
 
     def add_songs(self: SongsTableModel, songs: list[Song]) -> None:
@@ -1100,14 +1100,16 @@ class TableWindow(QMainWindow):
                 return self.all_tags_button_clicked(index)
             return self.view.edit(index)
         # key has to be Key_Delete
-        if selected_indexes[0].model() is self.proxy:
-            selected_indexes = [self.proxy.mapToSource(index) for index in selected_indexes]
+        for i, idx in enumerate(selected_indexes):
+            if idx.model() is self.proxy:
+                selected_indexes[i] = self.proxy.mapToSource(selected_indexes[i])
         self.model.remove_rows([index.row() for index in selected_indexes])
 
     def remove_rows(self: TableWindow, indexes: list[QModelIndex]) -> None:
         assert indexes
-        if indexes[0].model() is self.proxy:
-            indexes = [self.proxy.mapToSource(index) for index in indexes]
+        for i, idx in enumerate(indexes):
+            if idx.model() is self.proxy:
+                indexes[i] = self.proxy.mapToSource(idx)
         self.model.remove_rows([index.row() for index in indexes])
 
     def setup_table(self: TableWindow) -> None:
@@ -1232,6 +1234,7 @@ class TableViewWithContextMenu(QTableView):
         assert parent and isinstance(parent, TableWindow)
 
         context_menu = QMenu(self)
+        context_menu.setFixedWidth(200)
 
         # mouse is not on any rows
         if self.rowAt(a0.pos().y()) == -1:
@@ -1239,6 +1242,7 @@ class TableViewWithContextMenu(QTableView):
         else:
             selected_indexes = self.selectedIndexes()
             action_remove = QAction(context_menu)
+            action_remove.setShortcut(QKeySequence.StandardKey.Delete)
 
             text = "Remove this row"
             if len(selected_indexes) > 1:
@@ -1354,6 +1358,7 @@ class ImageEditor:
         return self.__data
 
     def crop_to_center_square(self: ImageEditor) -> bytes:
+        assert(self.__image)
         width, height = self.__image.size
         x = (width-height)/2
         self.__image = self.__image.crop((x, 0, x+height, height))

@@ -4,7 +4,7 @@ from pathlib import Path
 _PACKAGE_ROOT_PATH = Path(__file__).resolve().parent
 # for pyinstaller
 if hasattr(sys, "_MEIPASS"):
-    PACKAGE_ROOT_PATH = Path(sys._MEIPASS).resolve()
+    _PACKAGE_ROOT_PATH = Path(sys._MEIPASS).resolve()
 
 PLATFORM = sys.platform
 
