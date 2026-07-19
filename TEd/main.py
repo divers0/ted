@@ -1305,6 +1305,9 @@ class SongsListDialog(QDialog):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search...")
+        self.search_bar.textChanged.connect(self.search)
         self.songs_list = CheckableListWidget()
         self.songs_list.itemDoubleClicked.connect(self.accept)
         self.button_box = QDialogButtonBox(
@@ -1314,6 +1317,7 @@ class SongsListDialog(QDialog):
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
 
+        layout.addWidget(self.search_bar)
         layout.addWidget(self.songs_list)
         layout.addWidget(self.button_box)
 
@@ -1327,6 +1331,14 @@ class SongsListDialog(QDialog):
                 self.songs_list.addItem(item)
         else:
             self.songs_list.addItems(items)
+
+    def search(self: SongsListDialog):
+        search_query = self.search_bar.text()
+        for i in range(self.songs_list.count()):
+            item = self.songs_list.item(i)
+            if not item: continue
+            match = search_query in item.text().lower()
+            item.setHidden(not match)
 
     def get_selected_index(self: SongsListDialog) -> int | None:
         assert not self.allow_multiple
