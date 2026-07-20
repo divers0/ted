@@ -303,7 +303,7 @@ class Tag:
         self.id3[fid] = self.__frames[name][1](text=new_value)
 
     @property
-    def title(self):
+    def title(self) -> str:
         return self.__simple_string_tag_getter(self.__frames["title"][0])
 
     @title.setter
@@ -311,7 +311,7 @@ class Tag:
         self.__simple_string_tag_setter("title", new_title)
 
     @property
-    def artist(self):
+    def artist(self) -> str:
         return self.__simple_string_tag_getter(self.__frames["artist"][0])
 
     @artist.setter
@@ -319,7 +319,7 @@ class Tag:
         self.__simple_string_tag_setter("artist", new_artist)
 
     @property
-    def album(self):
+    def album(self) -> str:
         return self.__simple_string_tag_getter(self.__frames["album"][0])
 
     @album.setter
@@ -327,7 +327,7 @@ class Tag:
         self.__simple_string_tag_setter("album", new_album)
 
     @property
-    def album_artist(self):
+    def album_artist(self) -> str:
         return self.__simple_string_tag_getter(self.__frames["album_artist"][0])
 
     @album_artist.setter
@@ -335,7 +335,7 @@ class Tag:
         self.__simple_string_tag_setter("album_artist", new_album_artist)
 
     @property
-    def genre(self):
+    def genre(self) -> str:
         return self.__simple_string_tag_getter(self.__frames["genre"][0])
 
     @genre.setter
@@ -405,7 +405,7 @@ class Tag:
         self.__cover_fids.append(fid)
 
     @property
-    def lyrics(self):
+    def lyrics(self) -> str:
         if len(self.__lyrics_fids) == 0:
             return ""
         return self.id3[self.__lyrics_fids[0]].text
@@ -811,8 +811,7 @@ class Song(QObject):
 
 
 class SongsTableModel(QAbstractTableModel):
-    #                         empty_table
-    tableChanged = pyqtSignal(bool)
+    tableChanged = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -841,7 +840,7 @@ class SongsTableModel(QAbstractTableModel):
             del self.__songs[row]
             self.endRemoveRows()
         if not self.__songs:
-            self.tableChanged.emit(True)
+            self.tableChanged.emit()
 
     def add_songs(self, songs: list[Song]) -> None:
         songs_n = len(self.__songs)
@@ -867,14 +866,13 @@ class SongsTableModel(QAbstractTableModel):
                 col = self.__columns.index("Album")
             case "year":
                 col = self.__columns.index("Year")
-        if not col:
+        if col is None:
             return
 
         # they're the same because we're only trying to specify one cell
         top_left = bottom_right = self.index(row, col)
         self.dataChanged.emit(top_left, bottom_right, [
                               Qt.ItemDataRole.DisplayRole])
-        self.tableChanged.emit(False)  # for resizing the columns on update
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if not index.isValid():
@@ -930,7 +928,6 @@ class SongsTableModel(QAbstractTableModel):
                 song.file_name = value
             case _:
                 return False
-        self.tableChanged.emit(False)  # for resizing the columns on update
         return True
 
     def flags(self: SongsTableModel, index: QModelIndex) -> Qt.ItemFlag:
@@ -1106,7 +1103,7 @@ class TableWindow(QMainWindow):
 
         self.__accepted_drop_paths: list[Path] = []
         for path in all_paths:
-            if not path.suffix.lower == ".mp3" or not path.is_file():
+            if not path.suffix.lower() == ".mp3" or not path.is_file():
                 continue
             self.__accepted_drop_paths.append(Path(path))
 
@@ -1267,14 +1264,12 @@ class TableWindow(QMainWindow):
         if vertical_header is not None:
             vertical_header.hide()
 
-        self.model.tableChanged.connect(
-            lambda empty_table: self.update_table(empty_table))
+        self.model.tableChanged.connect(self.update_table)
 
-    def update_table(self, empty_table: bool):
-        if empty_table:
-            self.ui.action_save_all.setEnabled(False)
-            self.ui.action_autofill_ta.setEnabled(False)
-            self.ui.action_set_all.setEnabled(False)
+    def update_table(self) -> None:
+        self.ui.action_save_all.setEnabled(False)
+        self.ui.action_autofill_ta.setEnabled(False)
+        self.ui.action_set_all.setEnabled(False)
 
     def open(self) -> None:
         paths = QFileDialog.getOpenFileNames(
@@ -1451,7 +1446,7 @@ class SongsListDialog(QDialog):
         else:
             self.songs_list.addItems(items)
 
-    def search(self):
+    def search(self) -> None:
         search_query = self.search_bar.text()
         for i in range(self.songs_list.count()):
             item = self.songs_list.item(i)
@@ -1480,7 +1475,7 @@ class SongsListDialog(QDialog):
 
 
 class ImageViewer(QWidget):
-    def __init__(self, image_data: bytes, parent: QWidget | None = None):
+    def __init__(self, image_data: bytes, parent: QWidget | None = None) -> None:
         super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Image Viewer")
 
@@ -1768,7 +1763,7 @@ class EditTagsDialog(QDialog):
 
         self.close()
 
-    def autofill_title_and_artist(self):
+    def autofill_title_and_artist(self) -> None:
         res = self.song.get_title_and_artist_by_file_name(
             self.ui.file_name_edit.text())  # Better error
         if not res:
@@ -1846,7 +1841,7 @@ class EditTagsDialog(QDialog):
         self.ui.cover_label.setPixmap(scaled_pixmap)
         # self.cover_label.adjustSize()
 
-    def fill_in_fields_from_song(self):
+    def fill_in_fields_from_song(self) -> None:
         self.ui.title_edit.setText(self.song.title)
         self.ui.artist_edit.setText(self.song.artist)
         self.ui.album_edit.setText(self.song.album)
@@ -1854,6 +1849,8 @@ class EditTagsDialog(QDialog):
         self.ui.genre_edit.setText(self.song.genre)
         self.ui.track_count_spinbox.setValue(self.song.track_num[0])
         self.ui.disc_count_spinbox.setValue(self.song.disc_num[0])
+        self.ui.track_total_spinbox.setValue(self.song.track_num[1])
+        self.ui.disc_total_spinbox.setValue(self.song.disc_num[1])
         year = self.song.year
         if year:
             self.ui.year_edit.setText(str(year))
