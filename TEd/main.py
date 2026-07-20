@@ -410,7 +410,7 @@ class Tag:
         self.id3[fid] = APIC(
             encoding = 3, # UTF-8
             mime = "image/jpeg", # TODO: not handling png files
-            type=PictureType.COVER_FRONT, 
+            type=PictureType.COVER_FRONT,
             desc="",
             data=image_data
         )
@@ -672,7 +672,7 @@ class Song(QObject):
         splitted_file_name = file_name.split(' - ')
         parts_n = len(splitted_file_name)
         if parts_n == 2: return (splitted_file_name[0], splitted_file_name[1])
-        
+
     @property
     def cover(self: Song) -> bytes | None:
         return self.__tag.cover
@@ -804,7 +804,6 @@ class SongsTableModel(QAbstractTableModel):
             "All Tags",
             "File Name",
         ]
-        self.file_name_validator = FileNameValidator()
 
     @property
     def columns(self: SongsTableModel) -> list[str]:
@@ -897,7 +896,7 @@ class SongsTableModel(QAbstractTableModel):
                     if not value.isdigit(): return False
                     song.year = int(value)
             case 'File Name':
-                if not self.file_name_validator.is_file_name_valid(value):
+                if not FileNameValidator(value).is_valid():
                     return False
                 song.file_name = value
             case _:
@@ -962,6 +961,24 @@ class SetAllDialog(QDialog):
     def get_user_input(self: SetAllDialog) -> tuple[SetAllDialog.Tags, str]:
         return self.__tags[self.ui.tags_combobox.currentText()], self.ui.value_edit.text()
 
+class TableStatusLabel(QLabel):
+    def __init__(self: TableStatusLabel, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.__songs_len = 0
+        self.__selected_len = 0
+
+    def update_text(self: TableStatusLabel, songs_len: int, selected_len: int | None = None) -> None:
+        if songs_len == self.__songs_len and selected_len == self.__selected_len: return
+        self.__songs_len = songs_len
+        self.__selected_len = selected_len
+
+        status_bar_right_text = f"{songs_len} Song"
+        if songs_len > 1: status_bar_right_text += "s"
+        # if it's None or equals zero
+        if not selected_len: return self.setText(status_bar_right_text)
+
+        self.setText(status_bar_right_text + f" ({selected_len} selected)")
+
 class TableWindow(QMainWindow):
     def __init__(self: TableWindow) -> None:
         super().__init__()
@@ -1003,6 +1020,10 @@ class TableWindow(QMainWindow):
         central_widget = self.centralWidget()
         assert central_widget
         central_widget.setLayout(self.central_widget_layout)
+
+        self.table_status_label = TableStatusLabel()
+        self.ui.status_bar.addPermanentWidget(self.table_status_label)
+
         self.setup_table()
         self.view.setFocus()
 
@@ -1123,12 +1144,13 @@ class TableWindow(QMainWindow):
                 selected_indexes[i] = self.proxy.mapToSource(selected_indexes[i])
         self.model.remove_rows([index.row() for index in selected_indexes])
 
-    def remove_rows(self: TableWindow, indexes: list[QModelIndex]) -> None:
+    def remove_songs(self: TableWindow, indexes: list[QModelIndex]) -> None:
         assert indexes
         for i, idx in enumerate(indexes):
             if idx.model() is self.proxy:
                 indexes[i] = self.proxy.mapToSource(idx)
         self.model.remove_rows([index.row() for index in indexes])
+        self.table_status_label.update_text(len(self.model.songs))
 
     def setup_table(self: TableWindow) -> None:
         self.model = SongsTableModel()
@@ -1137,10 +1159,19 @@ class TableWindow(QMainWindow):
         self.proxy.setSourceModel(self.model)
 
         self.view = TableViewWithContextMenu()
-        self.view.removeRows.connect(lambda row: self.remove_rows(row))
+        self.view.removeRows.connect(lambda row: self.remove_songs(row))
 
         self.view.setModel(self.proxy)
         self.view.setSortingEnabled(True)
+
+        selection_model = self.view.selectionModel()
+        assert selection_model
+        selection_model.selectionChanged.connect(
+            lambda: self.table_status_label.update_text(
+                len(self.model.songs),
+                len(set(map(lambda x: x.row(), self.view.selectedIndexes())))
+            )
+        )
 
         # Search bar
         self.proxy.setFilterKeyColumn(-1)
@@ -1240,10 +1271,11 @@ class TableWindow(QMainWindow):
         self.dialog.exec()
 
     def add_songs(self: TableWindow, songs: list[Song]) -> None:
-        # checking if they've already been added
+        assert len(songs) > 0
         already_added_paths = [x.file_path for x in self.model.songs]
-        songs = [x for x in songs if x.file_path not in already_added_paths]
-        self.model.add_songs(songs)
+        new_songs = [x for x in songs if x.file_path not in already_added_paths]
+        self.model.add_songs(new_songs)
+        self.table_status_label.update_text(len(self.model.songs))
 
         self.ui.action_save_all.setEnabled(True)
         self.ui.action_autofill_ta.setEnabled(True)
@@ -1255,7 +1287,7 @@ class TableViewWithContextMenu(QTableView):
     def contextMenuEvent(self: TableViewWithContextMenu, a0: QContextMenuEvent | None) -> None:
         if not a0: return
         parent = self.parent()
-        assert parent and isinstance(parent, TableWindow)
+        assert isinstance(parent, TableWindow)
 
         context_menu = QMenu(self)
         context_menu.setFixedWidth(200)
@@ -1326,7 +1358,9 @@ class SongsListDialog(QDialog):
                     QAbstractItemView.SelectionMode.ExtendedSelection)
             for i in items:
                 item = QListWidgetItem(i)
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsSelectable)
+                item.setFlags(item.flags() |
+                              Qt.ItemFlag.ItemIsUserCheckable |
+                              Qt.ItemFlag.ItemIsSelectable)
                 item.setCheckState(Qt.CheckState.Unchecked)
                 self.songs_list.addItem(item)
         else:
@@ -1403,6 +1437,9 @@ class ImageEditor:
         return output_bytes.getvalue()
 
 class FileNameValidator:
+    def __init__(self: FileNameValidator, file_name: str) -> None:
+        self.__file_name = file_name
+
     def __is_file_name_valid_posix(self: FileNameValidator, file_name: str) -> bool:
         return bool(file_name) and "/" not in file_name and "\x00" not in file_name
 
@@ -1423,18 +1460,17 @@ class FileNameValidator:
             return False
         return True
 
-    def is_file_name_valid(self: FileNameValidator, file_name: str) -> bool:
+    def is_valid(self: FileNameValidator) -> bool:
         func = self.__is_file_name_valid_posix
         if PLATFORM == "win32":
             func = self.__is_file_name_valid_windows
-        return func(file_name)
+        return func(self.__file_name)
 
 class FileNameLineEditFilter(QObject):
     def __init__(self: FileNameLineEditFilter, initial_text: str,
                                          parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.__initial_text = initial_text
-        self.file_name_validator = FileNameValidator()
 
     def eventFilter(self: FileNameLineEditFilter, a0: QObject | None,
                                                      a1: QEvent | None) -> bool:
@@ -1446,7 +1482,7 @@ class FileNameLineEditFilter(QObject):
             return res
 
         text = obj.text()
-        if not self.file_name_validator.is_file_name_valid(text):
+        if not FileNameValidator(text).is_valid():
             obj.setText(self.__initial_text)
         return res
 
