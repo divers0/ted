@@ -998,7 +998,7 @@ class TableWindow(QMainWindow):
         self.ui.action_open.triggered.connect(self.open)
         self.ui.action_set_all.triggered.connect(self.set_all)
 
-        self.action_paste = QAction("Paste", self)
+        self.action_paste = QAction("&Paste", self)
         self.action_paste.setPriority(QAction.Priority.LowPriority)
         self.action_paste.setShortcut(QKeySequence.StandardKey.Paste)
         self.action_paste.triggered.connect(self.paste)
