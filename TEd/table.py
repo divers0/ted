@@ -345,7 +345,6 @@ class TableWindow(QMainWindow):
         self.dialog.exec()
 
     def add_songs(self, songs: list[Song]) -> None:
-        assert len(songs) > 0
         already_added_paths = [x.file_path for x in self.model.songs]
         new_songs = [
             x for x in songs if x.file_path not in already_added_paths]
@@ -511,7 +510,7 @@ class SongsTableModel(QAbstractTableModel):
                 return False
         return True
 
-    def flags(self: SongsTableModel, index: QModelIndex) -> Qt.ItemFlag:
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
         flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable

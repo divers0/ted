@@ -53,22 +53,15 @@ class Tag:
         return self.id3[fid][0]
 
     def __simple_string_tag_setter(self, name: str, new_value: str) -> None:
-        old_value = None
-        fid = self.__frames[name][0]
-        if fid == self.__frames["title"][0]:
-            old_value = self.title
-        elif fid == self.__frames["artist"][0]:
-            old_value = self.artist
-        elif fid == self.__frames["album"][0]:
-            old_value = self.album
-        elif fid == self.__frames["album_artist"][0]:
-            old_value = self.album_artist
-        elif fid == self.__frames["genre"][0]:
-            old_value = self.genre
+        old_value = getattr(self, name)
         if new_value == old_value:
             return
+
+        fid = self.__frames[name][0]
         if new_value == "":
             self.__remove_frame_by_fid(fid)
+            return
+
         self.id3[fid] = self.__frames[name][1](text=new_value)
 
     @property

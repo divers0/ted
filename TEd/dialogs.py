@@ -1,18 +1,23 @@
+from __future__ import annotations
+
 from enum import Enum
 from pathlib import Path
 
 from PyQt6.QtCore import QRegularExpression, Qt
 from PyQt6.QtGui import (QAction, QIcon, QKeyEvent, QPixmap,
                          QRegularExpressionValidator)
-from PyQt6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFileDialog,
-                             QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox,
+                             QFileDialog, QLineEdit, QListWidget,
+                             QListWidgetItem, QMenu, QPushButton, QVBoxLayout,
+                             QWidget)
+
 from .config import DISCARD_ICON_PATH
+from .filename import FileNameLineEditFilter
+from .image import ImageEditor, ImageViewer
+from .song import Song
 from .ui.AlbumCreationDialog import Ui_AlbumCreationDialog
 from .ui.EditTagsDialog import Ui_EditTagsDialog
 from .ui.SetAllDialog import Ui_SetAllDialog
-from .song import Song
-from .image import ImageViewer, ImageEditor
-from .filename import FileNameLineEditFilter
 
 
 class AlbumCreationDialog(QDialog):
