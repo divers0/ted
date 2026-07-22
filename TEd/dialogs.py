@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import os
 from enum import Enum
 from pathlib import Path
 
 from PyQt6.QtCore import QRegularExpression, Qt
-from PyQt6.QtGui import (QAction, QIcon, QKeyEvent, QPixmap,
+from PyQt6.QtGui import (QAction, QIcon, QKeyEvent, QKeySequence, QPixmap,
                          QRegularExpressionValidator)
-from PyQt6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox,
-                             QFileDialog, QLineEdit, QListWidget,
-                             QListWidgetItem, QMenu, QPushButton, QVBoxLayout,
-                             QWidget)
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QDialog,
+                             QDialogButtonBox, QFileDialog, QLineEdit,
+                             QListWidget, QListWidgetItem, QMenu, QPushButton,
+                             QVBoxLayout, QWidget)
 
 from .config import DISCARD_ICON_PATH
 from .filename import FileNameLineEditFilter
@@ -53,7 +54,6 @@ class AlbumCreationDialog(QDialog):
         self.ui.year_edit.setValidator(QRegularExpressionValidator(
             QRegularExpression("[1-9][0-9]{3}")))
         self.selected_cover_path: Path | None = None
-        print(self.selected_cover_path)
         self.__songs: list[Song] = []
 
     def add_song_browse_button_menu(self) -> None:
@@ -85,7 +85,7 @@ class AlbumCreationDialog(QDialog):
     @songs.setter
     def songs(self, songs: list[Song]) -> None:
         self.__songs = songs
-        self.ui.selected_songs_filenames_label.setText(
+        self.ui.selected_song_filenames_label.setText(
             ", ".join([x.updated_file_path().name for x in songs]))
 
     def get_new_songs(self) -> list[Song]:
@@ -189,10 +189,11 @@ class SetAllDialog(QDialog):
     def get_user_input(self) -> tuple[SetAllDialog.Tags, str]:
         return self.__tags[self.ui.tags_combobox.currentText()], self.ui.value_edit.text()
 
+
 class SongsListDialog(QDialog):
     def __init__(self, title: str, items: list[str], allow_multiple: bool, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedSize(580, 440)
+        self.resize(580, 440)
         self.setWindowTitle(title)
 
         self.allow_multiple = allow_multiple
@@ -202,8 +203,8 @@ class SongsListDialog(QDialog):
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Search...")
         self.search_bar.textChanged.connect(self.search)
-        self.songs_list = CheckableListWidget()
-        self.songs_list.itemDoubleClicked.connect(self.accept)
+        self.song_list = CheckableListWidget()
+        self.song_list.itemDoubleClicked.connect(self.accept)
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel
@@ -212,11 +213,11 @@ class SongsListDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
 
         layout.addWidget(self.search_bar)
-        layout.addWidget(self.songs_list)
+        layout.addWidget(self.song_list)
         layout.addWidget(self.button_box)
 
         if self.allow_multiple:
-            self.songs_list.setSelectionMode(
+            self.song_list.setSelectionMode(
                 QAbstractItemView.SelectionMode.ExtendedSelection)
             for i in items:
                 item = QListWidgetItem(i)
@@ -224,14 +225,25 @@ class SongsListDialog(QDialog):
                               Qt.ItemFlag.ItemIsUserCheckable |
                               Qt.ItemFlag.ItemIsSelectable)
                 item.setCheckState(Qt.CheckState.Unchecked)
-                self.songs_list.addItem(item)
+                self.song_list.addItem(item)
         else:
-            self.songs_list.addItems(items)
+            self.song_list.addItems(items)
+
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+        if not a0:
+            return
+        key = a0.key()
+        if key != Qt.Key.Key_Down:
+            return super().keyPressEvent(a0)
+        if not self.search_bar.hasFocus() or self.song_list.count() == 0:
+            return
+        self.song_list.setFocus()
+        self.song_list.item(0).setSelected(True)  # type: ignore
 
     def search(self) -> None:
         search_query = self.search_bar.text()
-        for i in range(self.songs_list.count()):
-            item = self.songs_list.item(i)
+        for i in range(self.song_list.count()):
+            item = self.song_list.item(i)
             if not item:
                 continue
             match = search_query in item.text().lower()
@@ -239,7 +251,7 @@ class SongsListDialog(QDialog):
 
     def get_selected_index(self) -> int | None:
         assert not self.allow_multiple
-        selected_items = self.songs_list.selectedIndexes()
+        selected_items = self.song_list.selectedIndexes()
         if not selected_items:
             return
         return selected_items[0].row()
@@ -247,8 +259,8 @@ class SongsListDialog(QDialog):
     def get_selected_indexes(self) -> list[int]:
         assert self.allow_multiple
         checked: list[int] = []
-        for i in range(self.songs_list.count()):
-            item = self.songs_list.item(i)
+        for i in range(self.song_list.count()):
+            item = self.song_list.item(i)
             if not item:
                 continue
             if item.checkState() == Qt.CheckState.Checked:
@@ -331,7 +343,42 @@ class EditTagsDialog(QDialog):
             self.song.remove_other_tags)
         self.ui.crop_cover_checkbox.setChecked(self.song.crop_cover_to_square)
 
+        self.action_paste = QAction()
+        self.action_paste.setShortcut(QKeySequence.StandardKey.Paste)
+        self.addAction(self.action_paste)
+        self.action_paste.triggered.connect(self.check_for_images_in_paste)
+
         self.ui.music_list.hide()
+
+    def check_for_images_in_paste(self) -> None:
+        cb = QApplication.clipboard()
+        if not cb:
+            return
+        mime_data = cb.mimeData()
+        if not mime_data:
+            return
+        supported_formats = (".jpg", ".png")
+        if mime_data.hasUrls():
+            if len(urls := mime_data.urls()) != 1:
+                return
+            path = Path(urls[0].toLocalFile())
+            if path.suffix.lower() not in supported_formats or not path.is_file():
+                return
+        else:
+            cb_contents = cb.text()
+            if cb_contents == "":
+                return
+            paths = cb_contents.strip().split(os.linesep)
+            if len(paths) != 1:
+                return
+            path = paths[0]
+            if not os.path.isfile(path) or \
+                    os.path.splitext(path.lower())[1] not in supported_formats:
+                return
+        with open(path, "rb") as f:
+            image_data = f.read()
+        self.new_cover = image_data
+        self.update_cover_display()
 
     @property
     def cover(self) -> bytes | None:
@@ -557,5 +604,3 @@ class CheckableListWidget(QListWidget):
                 if item.checkState() == Qt.CheckState.Checked:
                     continue
                 item.setCheckState(Qt.CheckState.Checked)
-
-
