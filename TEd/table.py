@@ -330,11 +330,10 @@ class TableWindow(QMainWindow):
         if self.__songs_added:
             songs = self.model.songs
         self.album_creation_dialog = AlbumCreationDialog(songs, self)
-        res = self.album_creation_dialog.exec()
-        if res == QDialog.DialogCode.Accepted:
-            self.add_songs(self.album_creation_dialog.get_new_songs())
-        else:
-            self.ui.action_new.setEnabled(True)
+        if self.album_creation_dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if new_songs := self.album_creation_dialog.get_new_songs():
+            self.add_songs(new_songs)
 
     def all_tags_button_clicked(self, index: QModelIndex) -> None:
         if index.model() is self.proxy:
@@ -345,6 +344,7 @@ class TableWindow(QMainWindow):
         self.dialog.exec()
 
     def add_songs(self, songs: list[Song]) -> None:
+        assert len(songs) > 0
         already_added_paths = [x.file_path for x in self.model.songs]
         new_songs = [
             x for x in songs if x.file_path not in already_added_paths]
@@ -379,9 +379,9 @@ class TableViewWithContextMenu(QTableView):
             action_remove = QAction(context_menu)
             action_remove.setShortcut(QKeySequence.StandardKey.Delete)
 
-            text = "Remove this row"
+            text = "Remove this song"
             if len(selected_indexes) > 1:
-                text = "Remove selected rows"
+                text = "Remove selected songs"
             action_remove.triggered.connect(
                 lambda: self.removeRows.emit(selected_indexes))
             action_remove.setText(text)

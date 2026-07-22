@@ -52,7 +52,8 @@ class AlbumCreationDialog(QDialog):
 
         self.ui.year_edit.setValidator(QRegularExpressionValidator(
             QRegularExpression("[1-9][0-9]{3}")))
-        self.selected_cover_path: Path | None
+        self.selected_cover_path: Path | None = None
+        print(self.selected_cover_path)
         self.__songs: list[Song] = []
 
     def add_song_browse_button_menu(self) -> None:
