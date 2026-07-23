@@ -7,6 +7,7 @@ if hasattr(sys, "_MEIPASS"):
     _PACKAGE_ROOT_PATH = Path(sys._MEIPASS).resolve()
 
 PLATFORM = sys.platform
+APP_NAME = "TEd"
 DEBUG_ENV_VAR_NAME = "_TED_DEBUG"
 
 ICONS_DIR_PATH = _PACKAGE_ROOT_PATH / "icons"

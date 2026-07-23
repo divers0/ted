@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
-from PyQt6.QtCore import (QAbstractTableModel, QModelIndex, QSize,
-                          QSortFilterProxyModel, Qt, pyqtSignal)
+from PyQt6.QtCore import (QAbstractTableModel, QModelIndex, QSettings, QSize,
+                          QSortFilterProxyModel, Qt, pyqtSignal, QDir)
 from PyQt6.QtGui import (QAction, QCloseEvent, QContextMenuEvent,
                          QDragEnterEvent, QDropEvent, QIcon, QKeyEvent,
                          QKeySequence)
@@ -70,6 +70,8 @@ class TableWindow(QMainWindow):
 
         self.setup_table()
         self.view.setFocus()
+
+        self.settings = QSettings()
 
         debug = os.getenv(DEBUG_ENV_VAR_NAME)
         assert debug is not None
@@ -202,18 +204,14 @@ class TableWindow(QMainWindow):
                 return self.all_tags_button_clicked(index)
             return self.view.edit(index)
         # key has to be Key_Delete
-        for i, idx in enumerate(selected_indexes):
-            if idx.model() is self.proxy:
-                selected_indexes[i] = self.proxy.mapToSource(
-                    selected_indexes[i])
-        self.model.remove_rows([index.row() for index in selected_indexes])
+        self.remove_songs(selected_indexes)
 
     def remove_songs(self, indexes: list[QModelIndex]) -> None:
         assert indexes
         for i, idx in enumerate(indexes):
             if idx.model() is self.proxy:
                 indexes[i] = self.proxy.mapToSource(idx)
-        self.model.remove_rows([index.row() for index in indexes])
+        self.model.remove_rows(set([index.row() for index in indexes]))
         self.table_status_label.update_text(len(self.model.songs))
 
     def setup_table(self) -> None:
@@ -278,10 +276,12 @@ class TableWindow(QMainWindow):
         self.ui.action_set_all.setEnabled(False)
 
     def open(self) -> None:
+        last_open_dir = self.settings.value("last_open_dir", QDir.homePath())
         paths = QFileDialog.getOpenFileNames(
-            self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
+            self, "Select Songs", last_open_dir, "Mp3 Files (*.mp3)")[0]
         if not paths:
-            return  # TODO: might want to tell the user what happened
+            return
+        self.settings.setValue("last_open_dir", os.path.dirname(paths[0]))
         songs = []
         for path in paths:
             song = Song(Path(path))
@@ -414,7 +414,7 @@ class SongsTableModel(QAbstractTableModel):
     def songs(self) -> list[Song]:
         return self.__songs
 
-    def remove_rows(self, rows: list[int]) -> None:
+    def remove_rows(self, rows: Iterable[int]) -> None:
         for row in sorted(rows, reverse=True):
             self.beginRemoveRows(QModelIndex(), row, row)
             del self.__songs[row]
@@ -548,11 +548,11 @@ class TableStatusLabel(QLabel):
         self.__songs_len = songs_len
         self.__selected_len = selected_len
 
-        status_bar_right_text = f"{songs_len} Song"
+        table_status_text = f"{songs_len} Song"
         if songs_len > 1:
-            status_bar_right_text += "s"
+            table_status_text += "s"
         # if it's None or equals zero
         if not selected_len:
-            return self.setText(status_bar_right_text)
+            return self.setText(table_status_text)
 
-        self.setText(status_bar_right_text + f" ({selected_len} selected)")
+        self.setText(table_status_text + f" ({selected_len} selected)")

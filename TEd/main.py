@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt6.QtCore import qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication
 
-from TEd.config import DEBUG_ENV_VAR_NAME
+from TEd.config import DEBUG_ENV_VAR_NAME, APP_NAME
 
 from .table import TableWindow
 
@@ -23,6 +23,9 @@ def main() -> int:
         def custom_message_handler(_, __, ___): return
         qInstallMessageHandler(custom_message_handler)
     app = QApplication(sys.argv)
+    app.setApplicationDisplayName(APP_NAME)
+    app.setApplicationName(APP_NAME)
+    app.setOrganizationName("Diverso")
     table_window = TableWindow()
     table_window.show()
 
