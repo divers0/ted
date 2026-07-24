@@ -4,7 +4,7 @@ import os
 from enum import Enum
 from pathlib import Path
 
-from PyQt6.QtCore import QRegularExpression, Qt
+from PyQt6.QtCore import QBuffer, QIODevice, QRegularExpression, Qt
 from PyQt6.QtGui import (QAction, QIcon, QKeyEvent, QKeySequence, QPixmap,
                          QRegularExpressionValidator)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QDialog,
@@ -361,12 +361,20 @@ class EditTagsDialog(QDialog):
         if not mime_data:
             return
         supported_formats = (".jpg", ".png")
-        if mime_data.hasUrls():
+        if mime_data.hasImage():
+            image = mime_data.imageData()
+            buffer = QBuffer()
+            buffer.open(QIODevice.OpenModeFlag.ReadWrite)
+            image.save(buffer, "JPEG")
+            image_data = buffer.data().data()
+        elif mime_data.hasUrls():
             if len(urls := mime_data.urls()) != 1:
                 return
             path = Path(urls[0].toLocalFile())
             if path.suffix.lower() not in supported_formats or not path.is_file():
                 return
+            with open(path, "rb") as f:
+                image_data = f.read()
         else:
             cb_contents = cb.text()
             if cb_contents == "":
@@ -378,8 +386,8 @@ class EditTagsDialog(QDialog):
             if not os.path.isfile(path) or \
                     os.path.splitext(path.lower())[1] not in supported_formats:
                 return
-        with open(path, "rb") as f:
-            image_data = f.read()
+            with open(path, "rb") as f:
+                image_data = f.read()
         self.new_cover = image_data
         self.update_cover_display()
 
