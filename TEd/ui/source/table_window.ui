@@ -41,7 +41,13 @@
    <addaction name="menu_file"/>
    <addaction name="menu_edit"/>
   </widget>
-  <widget class="QStatusBar" name="status_bar"/>
+  <widget class="QStatusBar" name="status_bar">
+   <property name="styleSheet">
+    <string notr="true">QStatusBar::item {
+	border: none;
+}</string>
+   </property>
+  </widget>
   <action name="action_new">
    <property name="text">
     <string>&amp;New Album</string>
