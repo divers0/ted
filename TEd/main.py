@@ -2,31 +2,50 @@ import os
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import qInstallMessageHandler
+from PyQt6.QtCore import (QCommandLineOption, QCommandLineParser,
+                          qInstallMessageHandler)
 from PyQt6.QtWidgets import QApplication
 
-from TEd.config import DEBUG_ENV_VAR_NAME, APP_NAME
+from TEd.config import APP_NAME, DEBUG_ENV_VAR_NAME
 
 from .table import TableWindow
 
-DEBUG = False
-if len(sys.argv) > 1:
-    debug_place_idx = 1 if Path(
-        sys.argv[0]).name != "bootstrap.py" or len(sys.argv) == 2 else 2
-    if sys.argv[debug_place_idx] in ("debug", "--debug"):
-        DEBUG = True
+
+def setup_parser(app: QApplication) -> QCommandLineParser:
+    parser = QCommandLineParser()
+    parser.addHelpOption()
+    parser.addPositionalArgument("file", "Files to open", "[file]...")
+    parser.addOption(QCommandLineOption(
+        "debug",
+        "Enables debug mode."
+    ))
+    parser.process(app)
+    return parser
 
 
 def main() -> int:
-    os.environ[DEBUG_ENV_VAR_NAME] = str(int(DEBUG))
-    if not DEBUG:
+    app = QApplication(sys.argv)
+    parser = setup_parser(app)
+
+    debug = parser.isSet("debug")
+    os.environ[DEBUG_ENV_VAR_NAME] = str(int(debug))
+    if not debug:
         def custom_message_handler(_, __, ___): return
         qInstallMessageHandler(custom_message_handler)
-    app = QApplication(sys.argv)
+
+    positional_args = parser.positionalArguments()
+    paths = []
+    for arg in set(positional_args):
+        path = Path(arg)
+        if path.is_file() and path.name.endswith(".mp3"):
+            paths.append(path)
+        else:
+            print(f"{path} is not a MP3 file.")
+
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("Diverso")
-    table_window = TableWindow()
+    table_window = TableWindow(paths)
     table_window.show()
 
     return app.exec()

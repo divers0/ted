@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from typing import Any, Iterable
 
-from PyQt6.QtCore import (QAbstractTableModel, QModelIndex, QSettings, QSize,
-                          QSortFilterProxyModel, Qt, pyqtSignal, QDir)
+from PyQt6.QtCore import (QAbstractTableModel, QDir, QModelIndex, QSettings,
+                          QSize, QSortFilterProxyModel, Qt, pyqtSignal)
 from PyQt6.QtGui import (QAction, QCloseEvent, QContextMenuEvent,
                          QDragEnterEvent, QDropEvent, QIcon, QKeyEvent,
                          QKeySequence)
@@ -22,7 +22,7 @@ from .ui.TableWindow import Ui_TableWindow
 
 
 class TableWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, mp3_paths: list[Path]) -> None:
         super().__init__()
         self.ui = Ui_TableWindow()
         self.ui.setupUi(self)
@@ -72,6 +72,9 @@ class TableWindow(QMainWindow):
         self.view.setFocus()
 
         self.settings = QSettings()
+
+        if mp3_paths:
+            self.add_songs([Song(path) for path in mp3_paths])
 
         debug = os.getenv(DEBUG_ENV_VAR_NAME)
         assert debug is not None

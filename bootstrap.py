@@ -73,6 +73,9 @@ def update_ui_files(python_exec_path):
 
 def parse_args():
     argv = sys.argv[1:]
+    if "--" in argv:
+        argv = argv[:argv.index("--")]
+        sys.argv = [sys.argv[0]]+sys.argv[sys.argv.index("--")+1:]
     if len(argv) not in (1, 2):
         error(USAGE)
     command = argv[0]
@@ -202,8 +205,19 @@ def main():
             python_exec_path = get_correct_python_exec_path()
             check_for_dependencies(python_exec_path)
             update_ui_files(python_exec_path)
-            from TEd.main import main as ted_main
-            ted_main()
+
+            # If '--' is used then 'run' is not a part of the args
+            if "run" in sys.argv:
+                sys.argv.remove("run")
+            if "debug" in sys.argv:
+                sys.argv[sys.argv.index("debug")] = "--debug"
+
+            import TEd.main
+            sys.argv.pop(0)
+            sys.argv.insert(
+                0, str(Path(TEd.main.__file__).parent / "__main__.py"))
+
+            TEd.main.main()
 
 
 if __name__ == "__main__":
