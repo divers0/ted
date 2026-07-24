@@ -2,20 +2,20 @@ import os
 from pathlib import Path
 from typing import Any, Iterable
 
-from PyQt6.QtCore import (QAbstractTableModel, QDir, QModelIndex, QSettings,
-                          QSize, QSortFilterProxyModel, Qt, pyqtSignal)
+from PyQt6.QtCore import (QAbstractTableModel, QModelIndex, QSize,
+                          QSortFilterProxyModel, Qt, pyqtSignal)
 from PyQt6.QtGui import (QAction, QCloseEvent, QContextMenuEvent,
                          QDragEnterEvent, QDropEvent, QIcon, QKeyEvent,
                          QKeySequence)
-from PyQt6.QtWidgets import (QApplication, QDialog, QFileDialog, QHeaderView,
-                             QLabel, QLineEdit, QMainWindow, QMenu,
-                             QSizePolicy, QStyleFactory, QTableView,
-                             QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QLabel,
+                             QLineEdit, QMainWindow, QMenu, QSizePolicy,
+                             QStyleFactory, QTableView, QVBoxLayout, QWidget)
 
 from .config import DEBUG_ENV_VAR_NAME, SVG_LOGO_FILE_PATH
 from .delegates import (EditTagsButtonDelegate, TrackSpinBoxDelegate,
                         YearLineEditDelegate)
 from .dialogs import AlbumCreationDialog, EditTagsDialog, SetAllDialog
+from .file_dialog import FileDialog
 from .filename import FileNameValidator
 from .song import Song
 from .ui.TableWindow import Ui_TableWindow
@@ -71,7 +71,7 @@ class TableWindow(QMainWindow):
         self.setup_table()
         self.view.setFocus()
 
-        self.settings = QSettings()
+        self.__file_dialog = FileDialog(self)
 
         if mp3_paths:
             self.add_songs([Song(path) for path in mp3_paths])
@@ -279,15 +279,12 @@ class TableWindow(QMainWindow):
         self.ui.action_set_all.setEnabled(False)
 
     def open(self) -> None:
-        last_open_dir = self.settings.value("last_open_dir", QDir.homePath())
-        paths = QFileDialog.getOpenFileNames(
-            self, "Select Songs", last_open_dir, "Mp3 Files (*.mp3)")[0]
+        paths = self.__file_dialog.get_songs()
         if not paths:
             return
-        self.settings.setValue("last_open_dir", os.path.dirname(paths[0]))
         songs = []
         for path in paths:
-            song = Song(Path(path))
+            song = Song(path)
             song.update_crop_cover()
             songs.append(song)
         self.add_songs(songs)

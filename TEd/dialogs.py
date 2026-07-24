@@ -8,11 +8,12 @@ from PyQt6.QtCore import QRegularExpression, Qt
 from PyQt6.QtGui import (QAction, QIcon, QKeyEvent, QKeySequence, QPixmap,
                          QRegularExpressionValidator)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QDialog,
-                             QDialogButtonBox, QFileDialog, QLineEdit,
-                             QListWidget, QListWidgetItem, QMenu, QPushButton,
-                             QVBoxLayout, QWidget)
+                             QDialogButtonBox, QLineEdit, QListWidget,
+                             QListWidgetItem, QMenu, QPushButton, QVBoxLayout,
+                             QWidget)
 
 from .config import DISCARD_ICON_PATH
+from .file_dialog import FileDialog
 from .filename import FileNameLineEditFilter
 from .image import ImageEditor, ImageViewer
 from .song import Song
@@ -55,6 +56,7 @@ class AlbumCreationDialog(QDialog):
             QRegularExpression("[1-9][0-9]{3}")))
         self.selected_cover_path: Path | None = None
         self.__songs: list[Song] = []
+        self.__file_dialog = FileDialog(self)
 
     def add_song_browse_button_menu(self) -> None:
         self.songs_menu = QMenu(self)
@@ -96,8 +98,10 @@ class AlbumCreationDialog(QDialog):
         return self.songs
 
     def cover_browse_clicked(self) -> None:
-        self.set_cover_path(Path(QFileDialog.getOpenFileName(
-            self, "Select Cover Image", ".", "*.jpg")[0]))
+        path = self.__file_dialog.get_cover_image()
+        if not path:
+            return
+        self.set_cover_path(path)
 
     def songs_browse_clicked(self, already_opened: bool) -> None:
         if already_opened:
@@ -113,10 +117,8 @@ class AlbumCreationDialog(QDialog):
                 self.songs = [self.__table_songs[i] for i in selected_idxs]
         else:
             self._new_songs = True
-            raw_paths = QFileDialog.getOpenFileNames(
-                self, "Select Songs", ".", "Mp3 Files (*.mp3)")[0]
-            self.songs = [Song(path) for path in
-                          [Path(x) for x in raw_paths]]
+            paths = self.__file_dialog.get_songs()
+            self.songs = [Song(path) for path in paths]
 
     def confirm_button_clicked(self) -> None:
         if self.ui.title_edit.displayText() == "":
@@ -280,6 +282,7 @@ class EditTagsDialog(QDialog):
         self.songs = songs
         self.index = index
         self.song: Song = self.songs[self.index]
+        self.__file_dialog = FileDialog(self)
 
         self.ui.year_edit.setValidator(QRegularExpressionValidator(
             QRegularExpression(year_validation_regex)))
@@ -389,27 +392,25 @@ class EditTagsDialog(QDialog):
         self.__cover = cover
 
     def open_copy_tags_dialog(self, already_opened: bool) -> None:
-        selected_song = None
-        if already_opened:
-            other_songs = [x for x in self.songs]
-            other_songs.remove(self.song)
-            self.dlg = SongsListDialog(
-                "Choose a song", [x.file_name for x in other_songs],
-                False, self
-            )
-            if self.dlg.exec() != QDialog.DialogCode.Accepted:
+        if not already_opened:
+            selected_path = self.__file_dialog.get_song()
+            if not selected_path:
                 return
-            selected_idx = self.dlg.get_selected_index()
-            if selected_idx is not None:
-                selected_song = other_songs[selected_idx]
-        else:
-            selected_path = self.open_file_dialog("*.mp3")
-            if selected_path:
-                selected_song = Song(Path(selected_path))
-        if not selected_song:
+            return self.copy_tags_from_song(Song(selected_path))
+
+        other_songs = [x for x in self.songs]
+        other_songs.remove(self.song)
+        self.dlg = SongsListDialog(
+            "Choose a song", [x.file_name for x in other_songs],
+            False, self
+        )
+        if self.dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        selected_idx = self.dlg.get_selected_index()
+        if selected_idx is None:
             return
 
-        self.copy_tags_from_song(selected_song)
+        self.copy_tags_from_song(other_songs[selected_idx])
 
     def copy_tags_from_song(self, selected_song: Song) -> None:
         self.ui.title_edit.setText(selected_song.title)
@@ -428,10 +429,11 @@ class EditTagsDialog(QDialog):
         self.ui.year_edit.setText(year)
 
     def copy_cover(self) -> None:
-        selected_path = self.open_file_dialog("*.mp3")
+        selected_path = self.__file_dialog.get_song()
         if not selected_path:
             return
-        selected_song = Song(Path(selected_path))
+
+        selected_song = Song(selected_path)
         if not selected_song.cover:
             return
         self.new_cover = selected_song.cover
@@ -449,13 +451,9 @@ class EditTagsDialog(QDialog):
             case self.CoverImageStates.EMBEDDED: self.cover = None
         self.update_cover_display()
 
-    def open_file_dialog(self, filter: str) -> str:
-        return QFileDialog.getOpenFileName(
-            self, "Select Cover Image", ".", filter)[0]
-
     def browse_cover(self) -> None:
-        file_path = self.open_file_dialog("*.jpg")
-        if file_path == "":
+        file_path = self.__file_dialog.get_cover_image()
+        if not file_path:
             return
         with open(file_path, "rb") as f:
             image_data = f.read()
