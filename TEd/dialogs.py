@@ -108,7 +108,7 @@ class AlbumCreationDialog(QDialog):
         if already_opened:
             self._new_songs = False
             self.dlg = SongsListDialog(
-                "Choose songs", [x.file_name for x in self.__table_songs],
+                "Choose songs", [x.filename for x in self.__table_songs],
                 True, self
             )
             if self.dlg.exec() != QDialog.DialogCode.Accepted:
@@ -298,8 +298,8 @@ class EditTagsDialog(QDialog):
         self.ui.fill_ta_button.clicked.connect(self.autofill_title_and_artist)
 
         self.fill_in_fields_from_song()
-        self.filter = FileNameLineEditFilter(self.song.file_name)
-        self.ui.file_name_edit.installEventFilter(self.filter)
+        self.filter = FileNameLineEditFilter(self.song.filename)
+        self.ui.filename_edit.installEventFilter(self.filter)
         self.display_cover()
 
         # Change Cover Button
@@ -410,7 +410,7 @@ class EditTagsDialog(QDialog):
         other_songs = [x for x in self.songs]
         other_songs.remove(self.song)
         self.dlg = SongsListDialog(
-            "Choose a song", [x.file_name for x in other_songs],
+            "Choose a song", [x.filename for x in other_songs],
             False, self
         )
         if self.dlg.exec() != QDialog.DialogCode.Accepted:
@@ -475,7 +475,7 @@ class EditTagsDialog(QDialog):
         self.song.album = self.ui.album_edit.text()
         self.song.album_artist = self.ui.album_artist_edit.text()
         self.song.genre = self.ui.genre_edit.text()
-        self.song.file_name = self.ui.file_name_edit.text()
+        self.song.filename = self.ui.filename_edit.text()
         self.song.lyrics = self.ui.lyrics_edit.toPlainText()
 
         year_edit = self.ui.year_edit.text()
@@ -497,8 +497,8 @@ class EditTagsDialog(QDialog):
         self.close()
 
     def autofill_title_and_artist(self) -> None:
-        res = self.song.get_title_and_artist_by_file_name(
-            self.ui.file_name_edit.text())  # Better error
+        res = self.song.get_title_and_artist_by_filename(
+            self.ui.filename_edit.text())  # Better error
         if not res:
             return
         self.ui.artist_edit.setText(res[0])
@@ -587,7 +587,7 @@ class EditTagsDialog(QDialog):
         year = self.song.year
         if year:
             self.ui.year_edit.setText(str(year))
-        self.ui.file_name_edit.setText(self.song.file_name)
+        self.ui.filename_edit.setText(self.song.filename)
         self.ui.lyrics_edit.setPlainText(self.song.lyrics)
 
 

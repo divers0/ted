@@ -274,7 +274,7 @@ class Song(QObject):
         if not file_path.is_file():
             raise FileNotFoundError()
         self.__file_path = file_path.absolute()
-        self.__file_name: str = self.__file_path.name
+        self.__filename: str = self.__file_path.name
 
         stat = self.__file_path.stat()
         self.__time: tuple[int, int] = (stat.st_atime_ns, stat.st_mtime_ns)
@@ -298,7 +298,7 @@ class Song(QObject):
             self.__original_file_has_tags = False
 
     def updated_file_path(self) -> Path:
-        return self.__file_path.parent / self.__file_name
+        return self.__file_path.parent / self.__filename
 
     def update_crop_cover(self) -> None:
         if self.__new_cover:
@@ -411,38 +411,38 @@ class Song(QObject):
         if self.__preserve_file_time:
             os.utime(self.__file_path, ns=self.__time)
 
-        if self.__file_name != self.__file_path.name:
+        if self.__filename != self.__file_path.name:
             return self.__rename()
         return True
 
     def __rename(self) -> bool:
-        if not self.__file_name.endswith(".mp3"):
-            print(f"Error: {self.__file_name} is not a valid mp3 file name")
+        if not self.__filename.endswith(".mp3"):
+            print(f"Error: {self.__filename} is not a valid mp3 file name")
             return False
         new_path = self.updated_file_path()
         if new_path.exists():
             # TODO: BETTER ERROR
-            print(f"Error {self.__file_name}: path already exists")
+            print(f"Error {self.__filename}: path already exists")
             return False
         try:
             self.__file_path = self.__file_path.rename(new_path)
             if self.__preserve_file_time:
                 os.utime(new_path, ns=self.__time)
         except Exception as e:
-            print(f"Error {self.__file_name}: {e}")
+            print(f"Error {self.__filename}: {e}")
             return False
         return True
 
     def remove_covers(self) -> None:
         self.__tag.remove_covers()
 
-    def get_title_and_artist_by_file_name(self, file_name: str) -> tuple[str, str] | None:
-        file_name = os.path.splitext(file_name)[0]
+    def get_title_and_artist_by_filename(self, filename: str) -> tuple[str, str] | None:
+        filename = os.path.splitext(filename)[0]
         # TODO: might want to add regex validation
-        splitted_file_name = file_name.split(' - ')
-        parts_n = len(splitted_file_name)
+        splitted_filename = filename.split(' - ')
+        parts_n = len(splitted_filename)
         if parts_n == 2:
-            return (splitted_file_name[0], splitted_file_name[1])
+            return (splitted_filename[0], splitted_filename[1])
 
     @property
     def cover(self) -> bytes | None:
@@ -459,18 +459,18 @@ class Song(QObject):
         return self.__file_path
 
     @property
-    def file_name(self) -> str:
-        return self.__file_name
+    def filename(self) -> str:
+        return self.__filename
 
-    @file_name.setter
-    def file_name(self, new_file_name: str) -> None:
-        if new_file_name == self.__file_name:
+    @filename.setter
+    def filename(self, new_filename: str) -> None:
+        if new_filename == self.__filename:
             return
-        if new_file_name == "":
+        if new_filename == "":
             return
 
-        self.__file_name = new_file_name
-        self.propertyChanged.emit("file_name", new_file_name)
+        self.__filename = new_filename
+        self.propertyChanged.emit("filename", new_filename)
         if not self.edited:
             self.edited = True
 

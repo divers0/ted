@@ -88,7 +88,7 @@
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_4">
             <item>
-             <widget class="QLineEdit" name="file_name_edit"/>
+             <widget class="QLineEdit" name="filename_edit"/>
             </item>
             <item alignment="Qt::AlignmentFlag::AlignHCenter">
              <widget class="QPushButton" name="change_cover_button">
@@ -280,7 +280,7 @@
              <item>
               <widget class="QPushButton" name="fill_ta_button">
                <property name="text">
-                <string>Fill title and artist based on file name</string>
+                <string>Fill title and artist based on filename</string>
                </property>
               </widget>
              </item>
@@ -311,7 +311,7 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>file_name_edit</tabstop>
+  <tabstop>filename_edit</tabstop>
   <tabstop>change_cover_button</tabstop>
   <tabstop>title_edit</tabstop>
   <tabstop>track_count_spinbox</tabstop>

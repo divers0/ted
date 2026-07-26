@@ -7,35 +7,35 @@ from .config import PLATFORM
 
 
 class FileNameValidator:
-    def __init__(self, file_name: str) -> None:
-        self.__file_name = file_name
+    def __init__(self, filename: str) -> None:
+        self.__filename = filename
 
-    def __is_file_name_valid_posix(self, file_name: str) -> bool:
-        return bool(file_name) and "/" not in file_name and "\x00" not in file_name
+    def __is_filename_valid_posix(self, filename: str) -> bool:
+        return bool(filename) and "/" not in filename and "\x00" not in filename
 
-    def __is_file_name_valid_windows(self, file_name: str) -> bool:
+    def __is_filename_valid_windows(self, filename: str) -> bool:
         illegal_chars = r'[<>:"/\\|?*\x00-\x1f]'
         reserved_names = {
             "CON", "PRN", "AUX", "NUL",
             *(f"COM{i}" for i in range(1, 10)),
             *(f"LPT{i}" for i in range(1, 10)),
         }
-        if not file_name or file_name != file_name.strip(" ."):
+        if not filename or filename != filename.strip(" ."):
             # can't be empty, or start/end with space or dot (Windows)
             return False
-        if re.search(illegal_chars, file_name):
+        if re.search(illegal_chars, filename):
             return False
-        if file_name.upper().split(".")[0] in reserved_names:
+        if filename.upper().split(".")[0] in reserved_names:
             return False
-        if len(file_name) > 255:
+        if len(filename) > 255:
             return False
         return True
 
     def is_valid(self) -> bool:
-        func = self.__is_file_name_valid_posix
+        func = self.__is_filename_valid_posix
         if PLATFORM == "win32":
-            func = self.__is_file_name_valid_windows
-        return func(self.__file_name)
+            func = self.__is_filename_valid_windows
+        return func(self.__filename)
 
 
 class FileNameLineEditFilter(QObject):

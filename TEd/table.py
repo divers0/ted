@@ -360,8 +360,8 @@ class TableWindow(QMainWindow):
 
     def autofill_titles_and_artists(self) -> None:
         for i in range(len(self.model.songs)):
-            res = self.model.songs[i].get_title_and_artist_by_file_name(
-                self.model.songs[i].file_name
+            res = self.model.songs[i].get_title_and_artist_by_filename(
+                self.model.songs[i].filename
             )
             if not res:
                 return  # TODO: Better error
@@ -481,7 +481,7 @@ class SongsTableModel(QAbstractTableModel):
     def _on_song_prop_change(self, name: str, row: int) -> None:
         col = None
         match name:
-            case "file_name":
+            case "filename":
                 col = self.__columns.index("File Name")
             case "title":
                 col = self.__columns.index("Title")
@@ -522,7 +522,7 @@ class SongsTableModel(QAbstractTableModel):
                 year = song.year
                 return year if year != 0 else None
             case 'File Name':
-                return song.file_name
+                return song.filename
 
     def setData(
             self,
@@ -552,7 +552,7 @@ class SongsTableModel(QAbstractTableModel):
             case 'File Name':
                 if not FileNameValidator(value).is_valid():
                     return False
-                song.file_name = value
+                song.filename = value
             case _:
                 return False
         return True
