@@ -12,6 +12,7 @@ class ImageViewer(QWidget):
         self.setWindowTitle("Image Viewer")
 
         layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         label = QLabel()
         layout.addWidget(label)
         pixmap = QPixmap()
