@@ -94,16 +94,15 @@ def parse_args():
 
 
 def cleanup_previous_builds():
-    dist = ROOT / "dist"
-    build = ROOT / "build"
-    if dist.is_dir():
-        rmtree(dist)
-    if build.is_dir():
-        rmtree(build)
+    dirs_to_remove = [
+        ROOT / "dist",
+    ]
+    for dir in dirs_to_remove:
+        if dir.is_dir():
+            rmtree(dir)
 
 
 def build(python_exec_path):
-    assert (PLATFORM == "win32")
     with tempfile.TemporaryDirectory() as tmp:
         launcher = Path(tmp) / "launcher.py"
         launcher.write_text(
@@ -114,7 +113,6 @@ def build(python_exec_path):
         )
         separator = ";"
         run_command([str(python_exec_path), "-m", "PyInstaller",
-                     "--clean",
                      "--onedir",
                      "--windowed",
                      "-n=TEd",
