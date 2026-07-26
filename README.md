@@ -63,13 +63,13 @@ To run in debug mode:
 python bootstrap.py run debug
 ```
 
-If a virtual environment at `.venv` exists, `run` uses it. It also automatically generates Python UI files (at `TEd/ui/generated`) or if they already exist, it regenerates those whose corresponding `.ui` files have changed before launching the app.
+If a virtual environment at `.venv` exists, `run` uses it. It also automatically generates Python UI files (at `TEd/ui/`) or if they already exist, it regenerates those whose corresponding `.ui` files have changed before launching the app.
 
 You can also run it directly with:
 ```bash
 python -m TEd
 ```
-You can pass `--debug` or `debug` here as well.
+You can pass `--debug` here as well.
 
 ## Building the Executable
 
@@ -81,7 +81,7 @@ Build the application with:
 python bootstrap.py build
 ```
 
-As with `run`, `build` also uses the virtual environment at `.venv` if it exists and automatically generates Python UI files (at `TEd/ui/generated`) or if they already exist, regenerates the generated UI files whose corresponding `.ui` files have changed before building.
+As with `run`, `build` also uses the virtual environment at `.venv` if it exists and automatically generates Python UI files (at `TEd/ui/`) or if they already exist, regenerates the generated UI files whose corresponding `.ui` files have changed before building.
 
 ## Screenshots
 <p align="center">
