@@ -14,9 +14,10 @@ from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QLabel,
 from .config import DEBUG_ENV_VAR_NAME, SVG_LOGO_FILE_PATH
 from .delegates import (EditTagsButtonDelegate, TrackSpinBoxDelegate,
                         YearLineEditDelegate)
-from .dialogs import AlbumCreationDialog, EditTagsDialog, SetAllDialog
-from .file_dialog import FileDialog
+from .dialogs import (AlbumCreationDialog, EditTagsDialog, FileDialog,
+                      SetAllDialog)
 from .filename import FileNameValidator
+from .settings import RECENTS_MAX_LENGTH, Settings
 from .song import Song
 from .ui.TableWindow import Ui_TableWindow
 
@@ -45,9 +46,9 @@ class TableWindow(QMainWindow):
         self.action_paste.setPriority(QAction.Priority.LowPriority)
         self.action_paste.setShortcut(QKeySequence.StandardKey.Paste)
         self.action_paste.triggered.connect(self.paste)
-        self.ui.menu_file.insertAction(
-            self.ui.action_save_all, self.action_paste)
-        self.ui.menu_file.insertSeparator(self.ui.action_save_all)
+        # the -2 is there because in the actions() list the "action" before last is a separator
+        self.ui.file_menu.insertAction(
+            self.ui.file_menu.actions()[-2], self.action_paste)
 
         self.search_bar = QLineEdit(self)
         self.search_bar.setPlaceholderText("Search...")
@@ -72,6 +73,16 @@ class TableWindow(QMainWindow):
         self.view.setFocus()
 
         self.__file_dialog = FileDialog(self)
+        self.__settings = Settings()
+
+        recents_menu_actions = self.ui.open_recents_menu.actions()
+        recents_menu_actions[-1].triggered.connect(
+            self.clear_and_update_recents)
+        # exclude the separator and "Clear"
+        recents_menu_actions = recents_menu_actions[:-2]
+        for action in recents_menu_actions:
+            action.triggered.connect(self.open_from_recents)
+        self.update_recents()
 
         if mp3_paths:
             self.add_songs([Song(path) for path in mp3_paths])
@@ -79,12 +90,44 @@ class TableWindow(QMainWindow):
         debug = os.getenv(DEBUG_ENV_VAR_NAME)
         assert debug is not None
         if int(debug):
-            self.ui.menu_file.addSeparator()
+            self.ui.file_menu.addSeparator()
             self.action_debug = QAction("Debug", self)
-            self.ui.menu_file.addAction(self.action_debug)
+            self.ui.file_menu.addAction(self.action_debug)
             self.action_debug.triggered.connect(self.debug)
             self.action_debug.setShortcut(QKeySequence("Ctrl+D"))
             self.style_counter = 0
+
+    def clear_and_update_recents(self) -> None:
+        self.__settings.clear_recents()
+        self.update_recents()
+
+    def update_recents(self) -> None:
+        recents = self.__settings.get_recents()
+        recents_menu_actions = self.ui.open_recents_menu.actions()[:-2] # exclude the separator and "Clear"
+        for i, path in enumerate(recents):
+            action = recents_menu_actions[i]
+            text = f" &{i+1}: {path.name}"
+            if i+1 == RECENTS_MAX_LENGTH:
+                # technically this defeats the purpose of having a RECENTS_MAX_LENGTH
+                text = f"1&0: {path.name}"
+            action.setText(text)
+            if not action.isVisible():
+                action.setVisible(True)
+
+        if not recents:
+            self.ui.open_recents_menu.setEnabled(False)
+
+        for action in recents_menu_actions[len(recents):len(recents_menu_actions)]:
+            action.setVisible(False)
+
+    def open_from_recents(self) -> None:
+        sender: QAction = self.sender()  # type: ignore
+        recents_menu_actions = self.ui.open_recents_menu.actions()
+        if sender not in recents_menu_actions:
+            return
+        self.add_songs([Song(
+            self.__settings.get_recents()[recents_menu_actions.index(sender)]
+        )])
 
     def debug(self) -> None:
         # print(" ---- debug ----")
@@ -354,7 +397,11 @@ class TableWindow(QMainWindow):
         self.ui.action_save_all.setEnabled(True)
         self.ui.action_autofill_ta.setEnabled(True)
         self.ui.action_set_all.setEnabled(True)
+        self.ui.open_recents_menu.setEnabled(True)
         self.__songs_added = True
+        for song in new_songs:
+            self.__settings.append_recents(song.file_path)
+        self.update_recents()
 
 
 class TableViewWithContextMenu(QTableView):

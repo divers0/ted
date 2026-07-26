@@ -3,19 +3,20 @@ from __future__ import annotations
 import os
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from PyQt6.QtCore import QBuffer, QIODevice, QRegularExpression, Qt
 from PyQt6.QtGui import (QAction, QIcon, QKeyEvent, QKeySequence, QPixmap,
                          QRegularExpressionValidator)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QDialog,
-                             QDialogButtonBox, QLineEdit, QListWidget,
-                             QListWidgetItem, QMenu, QPushButton, QVBoxLayout,
-                             QWidget)
+                             QDialogButtonBox, QFileDialog, QLineEdit,
+                             QListWidget, QListWidgetItem, QMenu, QPushButton,
+                             QVBoxLayout, QWidget)
 
 from .config import DISCARD_ICON_PATH
-from .file_dialog import FileDialog
 from .filename import FileNameLineEditFilter
 from .image import ImageEditor, ImageViewer
+from .settings import Settings
 from .song import Song
 from .ui.AlbumCreationDialog import Ui_AlbumCreationDialog
 from .ui.EditTagsDialog import Ui_EditTagsDialog
@@ -610,3 +611,54 @@ class CheckableListWidget(QListWidget):
                 if item.checkState() == Qt.CheckState.Checked:
                     continue
                 item.setCheckState(Qt.CheckState.Checked)
+
+
+class FileDialog:
+    def __init__(self, parent: QWidget | None) -> None:
+        self.__parent = parent
+        self.__settings = Settings()
+
+    def __get_path(self, multiple: bool, text: str, path: str, filter: str) -> Any:
+        dialog = QFileDialog.getOpenFileNames if multiple else QFileDialog.getOpenFileName
+        return dialog(
+            self.__parent, text, path, filter
+        )[0]
+
+    def get_cover_image(self) -> Path | None:
+        path = self.__get_path(
+            False,
+            "Select Cover Image",
+            self.__settings.get_last_open_dir_image(),
+            "*.jpg"
+        )
+        if not path:
+            return
+        path = Path(path)
+        self.__settings.set_last_open_dir_image(str(path.parent))
+        return path
+
+    def get_song(self) -> Path | None:
+        path = self.__get_path(
+            False,
+            "Select Song",
+            self.__settings.get_last_open_dir_mp3(),
+            "Mp3 Files (*.mp3)"
+        )
+        if not path:
+            return
+        path = Path(path)
+        self.__settings.set_last_open_dir_mp3(str(path.parent))
+        return path
+
+    def get_songs(self) -> list[Path]:
+        paths = self.__get_path(
+            True,
+            "Select Songs",
+            self.__settings.get_last_open_dir_mp3(),
+            "Mp3 Files (*.mp3)"
+        )
+        if not paths:
+            return []
+        paths = list(map(Path, paths))
+        self.__settings.set_last_open_dir_mp3(str(paths[0].parent))
+        return list(paths)
