@@ -49,8 +49,7 @@ class FileNameLineEditFilter(QObject):
         res = super().eventFilter(a0, a1)
         obj: QLineEdit = a0  # type: ignore
         event: QEvent = a1  # type: ignore
-        if event.type() not in (
-                QEvent.Type.FocusOut, QEvent.Type.Close, QEvent.Type.KeyPress):
+        if event.type() not in (QEvent.Type.FocusOut, QEvent.Type.Close):
             return res
 
         text = obj.text()
