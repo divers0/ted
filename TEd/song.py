@@ -177,14 +177,21 @@ class Tag:
         if new_lyrics == "":
             self.__remove_by_fids(self.__lyrics_fids)
             self.__lyrics_fids = []
-        fid = self.__frames["lyrics"][0]
+            return
+
+        if self.__lyrics_fids:
+            fid = self.__lyrics_fids[0]
+        else:
+            fid = self.__frames["lyrics"][0]
+
         self.id3[fid] = USLT(
             encoding=3,  # UTF-8
-            lang='eng',  # TODO: should this be detected?
+            lang='eng',
             desc='',
             text=new_lyrics
         )
-        self.__lyrics_fids.append(fid)
+        if fid not in self.__lyrics_fids:
+            self.__lyrics_fids.append(fid)
 
     @property
     def year(self) -> int:
@@ -464,9 +471,7 @@ class Song(QObject):
 
     @filename.setter
     def filename(self, new_filename: str) -> None:
-        if new_filename == self.__filename:
-            return
-        if new_filename == "":
+        if new_filename in (self.__filename, ""):
             return
 
         self.__filename = new_filename

@@ -290,6 +290,7 @@ class EditTagsDialog(QDialog):
         self.ui.button_box.accepted.connect(self.confirm)
         self.ui.button_box.rejected.connect(self.close)
         self.ui.tabs.setCurrentIndex(0)
+        self.ui.lyrics_edit.setFocus()
 
         self.new_cover: bytes | None = self.song.new_cover
         self.__cover:   bytes | None = self.song.cover
@@ -589,6 +590,14 @@ class EditTagsDialog(QDialog):
             self.ui.year_edit.setText(str(year))
         self.ui.filename_edit.setText(self.song.filename)
         self.ui.lyrics_edit.setPlainText(self.song.lyrics)
+
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+        if not a0:
+            return
+        if a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and \
+                a0.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            return self.confirm()
+        super().keyPressEvent(a0)
 
 
 class CheckableListWidget(QListWidget):
