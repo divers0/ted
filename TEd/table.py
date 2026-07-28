@@ -8,10 +8,11 @@ from PyQt6.QtGui import (QAction, QCloseEvent, QContextMenuEvent,
                          QDragEnterEvent, QDropEvent, QIcon, QKeyEvent,
                          QKeySequence)
 from PyQt6.QtWidgets import (QApplication, QDialog, QHeaderView, QLabel,
-                             QLineEdit, QMainWindow, QMenu, QSizePolicy,
-                             QStyleFactory, QTableView, QVBoxLayout, QWidget)
+                             QLineEdit, QMainWindow, QMenu, QMessageBox,
+                             QSizePolicy, QStyleFactory, QTableView,
+                             QVBoxLayout, QWidget)
 
-from .config import DEBUG_ENV_VAR_NAME, SVG_LOGO_FILE_PATH
+from .config import DEBUG_ENV_VAR_NAME, SVG_LOGO_FILE_PATH, VERSION
 from .delegates import (EditTagsButtonDelegate, TrackSpinBoxDelegate,
                         YearLineEditDelegate)
 from .dialogs import (AlbumCreationDialog, EditTagsDialog, FileDialog,
@@ -49,6 +50,14 @@ class TableWindow(QMainWindow):
         # the -2 is there because in the actions() list the "action" before last is a separator
         self.ui.file_menu.insertAction(
             self.ui.file_menu.actions()[-2], self.action_paste)
+
+        self.ui.action_about.triggered.connect(lambda: QMessageBox.about(
+            self, "About",
+            "<h1>About TEd</h1>"
+            f"<h3>Version {'.'.join(map(str, VERSION))}</h3>"
+            "<p>TEd is a simple MP3 Tag Editor designed for efficent tag editing.</p>"
+            "<p>The source code is available on <a href='https://github.com/divers0/ted'>Github</a></p>"
+        ))
 
         self.search_bar = QLineEdit(self)
         self.search_bar.setPlaceholderText("Search...")
@@ -103,7 +112,8 @@ class TableWindow(QMainWindow):
 
     def update_recents(self) -> None:
         recents = self.__settings.get_recents()
-        recents_menu_actions = self.ui.open_recents_menu.actions()[:-2] # exclude the separator and "Clear"
+        # exclude the separator and "Clear"
+        recents_menu_actions = self.ui.open_recents_menu.actions()[:-2]
         for i, path in enumerate(recents):
             action = recents_menu_actions[i]
             text = f" &{i+1}: {path.name}"

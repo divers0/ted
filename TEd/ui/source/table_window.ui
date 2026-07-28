@@ -57,8 +57,15 @@
     <addaction name="action_autofill_ta"/>
     <addaction name="action_set_all"/>
    </widget>
+   <widget class="QMenu" name="help_menu">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="action_about"/>
+   </widget>
    <addaction name="file_menu"/>
    <addaction name="edit_menu"/>
+   <addaction name="help_menu"/>
   </widget>
   <widget class="QStatusBar" name="status_bar">
    <property name="styleSheet">
@@ -184,6 +191,11 @@
   <action name="action_clear_recents">
    <property name="text">
     <string>&amp;Clear</string>
+   </property>
+  </action>
+  <action name="action_about">
+   <property name="text">
+    <string>&amp;About</string>
    </property>
   </action>
  </widget>
