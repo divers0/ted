@@ -420,6 +420,8 @@ class Song(QObject):
 
         if self.__filename != self.__file_path.name:
             return self.__rename()
+
+        self.edited = False
         return True
 
     def __rename(self) -> bool:
