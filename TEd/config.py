@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+VERSION = (0, 7, 0)
+
 _PACKAGE_ROOT_PATH = Path(__file__).resolve().parent
 # for pyinstaller
 if hasattr(sys, "_MEIPASS"):
