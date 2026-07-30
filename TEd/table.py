@@ -352,7 +352,7 @@ class TableWindow(QMainWindow):
             this_new_path = self.model.songs[i].updated_file_path()
             self.ui.status_bar.showMessage(f"Saving \"{this_new_path}\"")
             if not self.model.songs[i].save():
-                failed.append(this_new_path)
+                failed.append(str(this_new_path))
         time = 5000
         if nothing_to_save:
             return self.ui.status_bar.showMessage("Nothing to save", time)
