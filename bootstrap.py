@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -134,9 +135,9 @@ def get_venv_python_exec_path():
 
 def get_correct_python_exec_path():
     if VENV_DIR_PATH.is_dir():
-        return get_venv_python_exec_path()
+        return get_venv_python_exec_path(), True
     print("No .venv found: using the current Python interpreter.")
-    return sys.executable
+    return Path(sys.executable), False
 
 
 def setup_venv():
@@ -186,7 +187,7 @@ def main():
             print(USAGE)
             return
         case "build-ui":
-            python_exec_path = get_correct_python_exec_path()
+            python_exec_path, _ = get_correct_python_exec_path()
             check_for_dependencies(python_exec_path)
             update_ui_files(python_exec_path)
         case "setup":
@@ -194,13 +195,18 @@ def main():
         case "build":
             if PLATFORM != "win32":
                 error("building on your platform is not supported.")
-            python_exec_path = get_correct_python_exec_path()
+            python_exec_path, _ = get_correct_python_exec_path()
             check_for_dependencies(python_exec_path, force_pyinstaller=True)
             update_ui_files(python_exec_path)
             cleanup_previous_builds()
             build(python_exec_path)
         case "run":
-            python_exec_path = get_correct_python_exec_path()
+            python_exec_path, venv_exists = get_correct_python_exec_path()
+            # if .venv exists but its python executable is not being used
+            if venv_exists and sys.executable != str(python_exec_path.resolve()):
+                # rerun yourself with the executable from .venv
+                os.execv(python_exec_path, [str(python_exec_path)] + sys.argv)
+
             check_for_dependencies(python_exec_path)
             update_ui_files(python_exec_path)
 
